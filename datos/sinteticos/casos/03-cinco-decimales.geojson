@@ -1,0 +1,3 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","properties":{"id":"P-E03","productor":"PR-E0001","area_ha":1.66},"geometry":{"type":"Polygon","coordinates":[[[-88.19186,14.43648],[-88.19202,14.43697],[-88.19282,14.43710],[-88.19321,14.43623],[-88.19317,14.43578],[-88.19227,14.43573],[-88.19186,14.43648]]]}}
+]}

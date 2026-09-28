@@ -1,0 +1,3 @@
+# El generador escribe los datos con saltos de línea LF; así Git no los marca
+# como modificados cada vez que se regeneran en Windows.
+* text=auto eol=lf

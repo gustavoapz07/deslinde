@@ -1,0 +1,6 @@
+node_modules/
+dist/
+# Configuración personal de Obsidian si la carpeta se abre como bóveda
+.obsidian/
+# Se regenera con `npm run datos` (unos 4 MB)
+datos/sinteticos/grande-10000.geojson
