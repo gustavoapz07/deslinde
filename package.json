@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Validador de parcelas de café para el EUDR. Prototipo v0 con datos sintéticos.",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",

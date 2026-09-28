@@ -71,3 +71,7 @@ estrella que no se cruzan ni se solapan entre sí.
 | Pruebas | `vitest` | 5.0.2 | MIT |
 
 Versiones y licencias leídas del `package.json` de cada paquete instalado el 28-09-2026.
+
+## Licencia
+
+Código bajo licencia [MIT](LICENSE).
