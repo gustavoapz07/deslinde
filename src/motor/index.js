@@ -1,5 +1,23 @@
-// Motor de validación de Deslinde. Se construye en la Fase 1: en la Fase 0 solo
-// existe el contrato para que las pruebas se puedan escribir antes que el código.
+// Motor de validación de Deslinde: lee el archivo, revisa cada parcela con las
+// reglas R1 a R12 y arma el informe. No usa servidor: todo corre donde se llame.
+
+import { leer } from './lector.js'
+import {
+  reglaR1,
+  reglaR10,
+  reglaR11,
+  reglaR12,
+  reglaR2,
+  reglaR3yR4,
+  reglaR5,
+  reglaR6,
+  reglaR7,
+  reglaR8,
+  reglaR9,
+} from './reglas.js'
+
+export { ErrorDeArchivo } from './lector.js'
+export { geojsonCorregido, informeCSV } from './salidas.js'
 
 /**
  * @typedef {Object} Resultado
@@ -15,20 +33,89 @@
  * @typedef {Object} Informe
  * @property {number} parcelas      Cantidad de parcelas leídas.
  * @property {Resultado[]} resultados
+ * @property {{errores: number, advertencias: number, parcelasConErrores: number}} resumen
  */
 
 export const OPCIONES_POR_DEFECTO = {
   formato: 'geojson', // 'geojson' o 'csv'
   umbralAreaPct: 10, // R12: diferencia admitida entre área declarada y calculada [hipótesis]
+  solapeMinimoM2: 10, // R10: solapes menores se toman como ruido de medición [hipótesis]
+}
+
+// Revisa una parcela sola. Devuelve sus hallazgos y si su geometría sirve para
+// compararla con las demás (R10 y R11).
+function revisarParcela(p, opciones) {
+  const r1 = reglaR1(p)
+  if (r1) return { hallazgos: [r1], comparable: false }
+
+  const hallazgos = [reglaR3yR4(p, opciones.formato), reglaR2(p)]
+  if (p.tipo === 'Point') {
+    hallazgos.push(reglaR9(p))
+    return { hallazgos, comparable: true }
+  }
+
+  const r5 = reglaR5(p)
+  hallazgos.push(...r5.hallazgos)
+  if (r5.incompleto) return { hallazgos, comparable: false }
+
+  const r6 = reglaR6(p) // antes de R7, para que los números de vértice sean los del archivo
+  hallazgos.push(r6, ...reglaR7(p), reglaR8(p))
+  if (!r6) hallazgos.push(reglaR12(p, opciones.umbralAreaPct))
+  return { hallazgos, comparable: !r6 }
+}
+
+/**
+ * Lee y revisa un archivo. Devuelve también las parcelas ya corregidas
+ * (pares invertidos, anillos cerrados, vértices repetidos quitados) para
+ * escribir el GeoJSON corregido.
+ */
+export function analizar(texto, opciones = {}) {
+  const o = { ...OPCIONES_POR_DEFECTO, ...opciones }
+  const parcelas = leer(texto, o.formato)
+  const encontrados = []
+  const comparables = []
+
+  for (const p of parcelas) {
+    const { hallazgos, comparable } = revisarParcela(p, o)
+    for (const h of hallazgos) if (h) encontrados.push({ parcela: p, ...h })
+    if (comparable) comparables.push(p)
+  }
+
+  const r11 = reglaR11(comparables)
+  encontrados.push(...r11.hallazgos, ...reglaR10(comparables, r11.duplicadas, o.solapeMinimoM2))
+
+  const numeroDeRegla = (r) => Number(r.regla.slice(1))
+  encontrados.sort((a, b) => a.parcela.indice - b.parcela.indice || numeroDeRegla(a) - numeroDeRegla(b))
+
+  const resultados = encontrados.map(({ parcela, regla, severidad, ubicacion, mensaje, accion }) => ({
+    parcela: parcela.etiqueta,
+    regla,
+    severidad,
+    ubicacion,
+    mensaje,
+    accion,
+  }))
+  const conError = new Set(encontrados.filter((r) => r.severidad === 'error').map((r) => r.parcela.indice))
+  const errores = resultados.filter((r) => r.severidad === 'error').length
+
+  return {
+    parcelas,
+    informe: {
+      parcelas: parcelas.length,
+      resultados,
+      resumen: { errores, advertencias: resultados.length - errores, parcelasConErrores: conError.size },
+    },
+  }
 }
 
 /**
  * Valida el texto de un archivo de parcelas. Recibe el texto y no el objeto ya
  * leído porque R2 cuenta los decimales tal como vienen escritos.
+ * Lanza ErrorDeArchivo si el archivo no se puede leer.
  * @param {string} texto
  * @param {Partial<typeof OPCIONES_POR_DEFECTO>} [opciones]
  * @returns {Informe}
  */
 export function validarTexto(texto, opciones = {}) {
-  throw new Error('Motor sin implementar: se construye en la Fase 1')
+  return analizar(texto, opciones).informe
 }
