@@ -55,14 +55,34 @@ describe('trabajo del worker', () => {
     }
   })
 
-  it('los límites encierran todas las parcelas dibujadas', async () => {
-    const { limites, archivos } = procesar(archivo('errores-mezclados.geojson'))
-    const [oeste, sur, este, norte] = limites
-    // Aplana cualquier geometría a sus números: longitud, latitud, longitud…
-    const numeros = (await leerJSON(archivos.mapa)).features.flatMap((f) => f.geometry.coordinates.flat(3))
+  // Caja de un grupo de parcelas, calculada a mano: aplana cada geometría a sus
+  // números (longitud, latitud, longitud…).
+  function caja(features) {
+    const numeros = features.flatMap((f) => f.geometry.coordinates.flat(3))
     const lons = numeros.filter((_, i) => i % 2 === 0)
     const lats = numeros.filter((_, i) => i % 2 === 1)
-    expect([Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)]).toEqual([oeste, sur, este, norte])
+    return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)]
+  }
+
+  it('el encuadre deja fuera la parcela lejana y toma todas las de Honduras', async () => {
+    const { informe, limites, archivos } = procesar(archivo('errores-mezclados.geojson'))
+    const lejana = informe.resultados.find((r) => r.regla === 'R4').parcela
+    const features = (await leerJSON(archivos.mapa)).features
+    expect(features.some((f) => f.properties.id === lejana)).toBe(true) // se dibuja igual
+    expect(limites).toEqual(caja(features.filter((f) => f.properties.id !== lejana)))
+  })
+
+  it('si ninguna parcela cae en Honduras, encuadra todas', async () => {
+    const { limites, archivos } = procesar(archivo('casos/08-fuera-de-honduras.geojson'))
+    expect(limites).toEqual(caja((await leerJSON(archivos.mapa)).features))
+  })
+
+  it('cuenta las parcelas por su peor severidad', () => {
+    const { conteo, informe } = procesar(archivo('errores-mezclados.geojson'))
+    expect(conteo.error + conteo.advertencia + conteo.ok).toBe(informe.parcelas)
+    expect(conteo.error).toBe(informe.resumen.parcelasConErrores)
+    expect(conteo.ok).toBe(12)
+    expect(conteo.sinDibujar).toBe(1) // la de R1
   })
 
   it('un archivo sin parcelas dibujables no trae límites', () => {

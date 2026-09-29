@@ -16,7 +16,7 @@ La investigación, las decisiones y el plan están en la bóveda de Obsidian `Ag
 |------|--------|
 | 0. Preparar: stack, datos sintéticos, pruebas escritas | Hecha el 28-09-2026 |
 | 1. Motor de validación (R1 a R12) y salidas | Hecha el 28-09-2026: 36 pruebas pasan; 10,000 parcelas en unos 0.5 s |
-| 2. Interfaz: carga, mapa, lista de errores | En curso: el motor corre en un Web Worker (53 pruebas pasan) y la página ya carga archivos y ofrece las descargas. Faltan el mapa y la lista |
+| 2. Interfaz: carga, mapa, lista de errores | En curso: Web Worker, carga, descargas y mapa con las parcelas por severidad (65 pruebas pasan). Faltan la lista de errores y el diseño final |
 | 3. Auditoría y publicación | Pendiente |
 
 ## Cómo correrlo
@@ -98,6 +98,25 @@ Medido el 28-09-2026 en el navegador, con el build de producción y el archivo d
 | Con Web Worker | 0.49 a 0.56 s | Ninguna tarea larga; la página responde igual que en reposo (unos 20 ms) |
 | Sin Web Worker (el mismo motor en la página) | 0.53 a 0.62 s | La página queda congelada toda la revisión (527 a 622 ms) |
 
+## Mapa
+
+`src/mapa/` dibuja las parcelas con MapLibre sobre el mapa base de OpenFreeMap (estilo `positron`).
+
+- **Colores por severidad**: rojo oscuro (errores), ámbar (solo advertencias) y azul (sin hallazgos).
+  Se distinguen por tono y por claridad, también con daltonismo rojo-verde; el borde del error es más grueso.
+- **Puntos negros**: dónde está cada problema (el cruce, el vértice repetido…), desde zoom 12.
+- **Clic en una parcela**: ficha con su código, estado, hallazgos y qué hacer. Los textos del archivo se escriben como texto, nunca como HTML.
+- **Encuadre**: las parcelas dentro de Honduras. Una parcela lejana (R4) se dibuja igual, pero no achica el resto.
+- **Mapa base apagable**: sin él, el estilo no tiene ninguna dirección de internet y el mapa no pide nada.
+  La preferencia se recuerda en el navegador. Si OpenFreeMap no responde, las parcelas se ven sobre fondo liso.
+- **Auditoría de privacidad**: `#mapa[data-peticiones-externas]` cuenta las peticiones del mapa que salen del equipo.
+  Con el mapa base apagado no sube al mover ni acercar el mapa.
+
+La capa de parcelas llega del worker como URL de un `Blob`: MapLibre la lee y la corta en su propio worker.
+Con 10,000 parcelas la página no se congela; MapLibre tiene pausas ocasionales de 50 a 160 ms al cargar teselas nuevas.
+
+La parte que no necesita MapLibre (estilo, capas, ficha) está en `src/mapa/capas.js` y se prueba en Node (`pruebas/mapa.test.js`).
+
 ## Reglas
 
 | Regla | Qué revisa | Severidad |
@@ -133,7 +152,8 @@ estrella que no se cruzan ni se solapan entre sí.
 | Pieza | Paquete | Versión | Licencia |
 |-------|---------|---------|----------|
 | Geometría | `@turf/turf` | 7.4.0 | MIT |
-| Mapa (Fase 2) | `maplibre-gl` | 6.11.2 | BSD-3-Clause |
+| Mapa | `maplibre-gl` | 6.11.2 | BSD-3-Clause |
+| Mapa base (servicio, sin paquete) | OpenFreeMap, estilo `positron` | — | Datos © OpenStreetMap (ODbL), OpenMapTiles |
 | Servidor de desarrollo y compilación | `vite` | 8.3.1 | MIT |
 | Pruebas | `vitest` | 5.0.2 | MIT |
 

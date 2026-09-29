@@ -6,6 +6,7 @@
 
 import { bbox } from '@turf/turf'
 import { analizar, ErrorDeArchivo } from './index.js'
+import { HONDURAS } from './reglas.js'
 import { escribirCorregido, informeCSV } from './salidas.js'
 
 export const MENSAJE_INTERNO =
@@ -14,9 +15,30 @@ export const MENSAJE_INTERNO =
 /**
  * @typedef {Object} ResultadoDelTrabajo
  * @property {import('./index.js').Informe} informe
- * @property {[number, number, number, number]|null} limites  Caja de las parcelas dibujables, para encuadrar el mapa.
+ * @property {[number, number, number, number]|null} limites  Caja para encuadrar el mapa: las parcelas dibujables dentro de Honduras, o todas si ninguna lo está.
+ * @property {{error: number, advertencia: number, ok: number, sinDibujar: number}} conteo  Parcelas por peor severidad, para la leyenda.
  * @property {{mapa: Blob, informe: Blob, corregido: Blob}} archivos
  */
+
+const dentroDeHonduras = ([oeste, sur, este, norte]) =>
+  oeste >= HONDURAS.lonMin && este <= HONDURAS.lonMax && sur >= HONDURAS.latMin && norte <= HONDURAS.latMax
+
+// Caja para encuadrar el mapa: las parcelas dentro de Honduras, si hay. Una
+// parcela lejana (R4) dejaría al resto diminuto; sigue dibujada y en el informe.
+function encuadre(mapa) {
+  if (mapa.features.length === 0) return null
+  const adentro = mapa.features.filter((f) => dentroDeHonduras(bbox(f)))
+  return bbox(adentro.length > 0 ? { type: 'FeatureCollection', features: adentro } : mapa)
+}
+
+function contar(estados) {
+  const conteo = { error: 0, advertencia: 0, ok: 0, sinDibujar: 0 }
+  for (const { severidad, dibujable } of estados) {
+    conteo[severidad]++
+    if (!dibujable) conteo.sinDibujar++
+  }
+  return conteo
+}
 
 // Capa del mapa: una parcela por Feature, con su peor severidad. Las que no se
 // pueden dibujar (R1, anillos incompletos) quedan fuera; siguen en el informe.
@@ -44,7 +66,8 @@ export function procesar(texto, opciones = {}) {
   const mapa = capaDelMapa(parcelas, estados)
   return {
     informe,
-    limites: mapa.features.length > 0 ? bbox(mapa) : null,
+    limites: encuadre(mapa),
+    conteo: contar(estados),
     archivos: {
       mapa: new Blob([JSON.stringify(mapa)], { type: 'application/geo+json' }),
       informe: new Blob([informeCSV(informe)], { type: 'text/csv;charset=utf-8' }),

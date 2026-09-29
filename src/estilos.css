@@ -1,0 +1,234 @@
+/* Estilos de la página de Deslinde. Versión de trabajo de la Fase 2: el diseño
+   final (textos, tipografía, detalles) se cierra al terminar la interfaz. */
+
+:root {
+  --tinta: #1f2328;
+  --tinta-suave: #57606a;
+  --papel: #ffffff;
+  --fondo: #f6f5f2;
+  --linea: #d9d7d0;
+  --acento: #2a5d3c;
+  --error: #b3202a;
+  --advertencia: #e0a100;
+  --ok: #2a74b0;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  font: 15px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--tinta);
+  background: var(--fondo);
+}
+
+#app {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+}
+
+.cabecera {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  background: var(--acento);
+  color: #fff;
+}
+
+.cabecera h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.cabecera p {
+  margin: 0;
+  opacity: 0.85;
+}
+
+.cuerpo {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  min-height: 0;
+}
+
+.panel {
+  overflow-y: auto;
+  padding: 16px;
+  background: var(--papel);
+  border-right: 1px solid var(--linea);
+}
+
+.panel section + section,
+.panel .aviso {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--linea);
+}
+
+.panel h2 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--tinta-suave);
+}
+
+.carga label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.carga input[type='file'] {
+  max-width: 100%;
+}
+
+#estado {
+  min-height: 1.45em;
+  margin: 10px 0 0;
+  color: var(--tinta-suave);
+}
+
+#resumen {
+  margin: 0 0 10px;
+  font-weight: 600;
+}
+
+.leyenda {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+.leyenda li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.leyenda .cuenta {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.muestra {
+  width: 18px;
+  height: 12px;
+  border-radius: 2px;
+  border: 2px solid;
+}
+
+.muestra.error {
+  border-color: var(--error);
+  background: color-mix(in srgb, var(--error) 40%, transparent);
+}
+
+.muestra.advertencia {
+  border-color: var(--advertencia);
+  background: color-mix(in srgb, var(--advertencia) 40%, transparent);
+}
+
+.muestra.ok {
+  border-width: 1px;
+  border-color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 25%, transparent);
+}
+
+.nota {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--tinta-suave);
+}
+
+.descargas {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.descargas a {
+  color: var(--acento);
+  font-weight: 600;
+}
+
+.fondo label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-weight: 600;
+}
+
+.aviso {
+  font-size: 13px;
+  color: var(--tinta-suave);
+}
+
+.mapa {
+  position: relative;
+  min-height: 0;
+}
+
+/* Ficha de una parcela en el mapa */
+.ficha ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.ficha li + li {
+  margin-top: 6px;
+}
+
+.ficha small {
+  color: var(--tinta-suave);
+}
+
+.ficha-estado {
+  font-size: 12px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  color: #fff;
+}
+
+.ficha-error {
+  background: var(--error);
+}
+
+.ficha-advertencia {
+  background: var(--advertencia);
+  color: var(--tinta);
+}
+
+.ficha-ok {
+  background: var(--ok);
+}
+
+@media (max-width: 800px) {
+  #app {
+    height: auto;
+  }
+
+  .cuerpo {
+    grid-template-columns: 1fr;
+  }
+
+  .panel {
+    border-right: 0;
+    border-bottom: 1px solid var(--linea);
+  }
+
+  .mapa {
+    height: 65vh;
+  }
+}
