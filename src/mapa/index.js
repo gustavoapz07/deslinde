@@ -8,7 +8,6 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import {
   CAPAS_CLIC,
-  capaDeHallazgos,
   construirEstilo,
   ESTILO_BASE,
   fichaDeParcela,
@@ -52,9 +51,11 @@ function contenidoDeFicha(ficha) {
  */
 export function crearMapa(contenedor, { conFondo = true } = {}) {
   const estado = { base: null, parcelas: undefined, hallazgos: undefined }
-  let resultados = []
+  /** @type {import('../lista/datos.js').Hallazgo[]} */
+  let hallazgos = []
   let fondoPedido = false
   let seleccion = null
+  let avisarEleccion = () => {}
 
   // Auditoría de privacidad: MapLibre pasa por aquí cada petición del mapa
   // (estilo, teselas, fuentes, íconos). Se cuentan las que salen del equipo y el
@@ -98,15 +99,45 @@ export function crearMapa(contenedor, { conFondo = true } = {}) {
     if (indice !== null) mapa.setFeatureState({ source: FUENTE_PARCELAS, id: indice }, { seleccionada: true })
   }
 
-  const ficha = new Popup({ maxWidth: '340px' })
-  ficha.on('close', () => elegir(null))
+  // La ficha no se cierra sola con un clic en el mapa: el clic de abajo decide si
+  // abre otra o la cierra. Si no, al pasar de una parcela a otra se cerraba la nueva.
+  const ficha = new Popup({ maxWidth: '340px', closeOnClick: false })
+  let cerrandoPorCodigo = false
+  ficha.on('close', () => {
+    elegir(null)
+    if (!cerrandoPorCodigo) avisarEleccion(null) // la cerró la persona
+  })
+
+  function cerrarFicha() {
+    cerrandoPorCodigo = true
+    ficha.remove()
+    cerrandoPorCodigo = false
+  }
+
+  function abrirFicha(indice, lugar, id) {
+    cerrarFicha() // antes de elegir: al cerrarse, la ficha anterior borra la selección
+    elegir(indice)
+    ficha.setLngLat(lugar).setDOMContent(contenidoDeFicha(fichaDeParcela(indice, hallazgos, id))).addTo(mapa)
+  }
+
+  // Primero lo que está justo bajo el clic; si no hay nada, un margen de unos
+  // píxeles, para acertarle a un contorno (R6) o a un punto con el dedo.
+  const MARGEN_CLIC = 6
+  function parcelaEn({ x, y }) {
+    const exacta = mapa.queryRenderedFeatures([x, y], { layers: CAPAS_CLIC })
+    if (exacta.length > 0) return exacta[0]
+    const caja = [
+      [x - MARGEN_CLIC, y - MARGEN_CLIC],
+      [x + MARGEN_CLIC, y + MARGEN_CLIC],
+    ]
+    return mapa.queryRenderedFeatures(caja, { layers: CAPAS_CLIC })[0]
+  }
 
   mapa.on('click', (e) => {
-    const [parcela] = mapa.queryRenderedFeatures(e.point, { layers: CAPAS_CLIC })
-    if (!parcela) return
-    ficha.remove() // antes de elegir: al cerrarse, la ficha anterior borra la selección
-    elegir(parcela.id)
-    ficha.setLngLat(e.lngLat).setDOMContent(contenidoDeFicha(fichaDeParcela(parcela.properties, resultados))).addTo(mapa)
+    const parcela = parcelaEn(e.point)
+    if (!parcela) return ficha.remove() // clic fuera de las parcelas: cierra la ficha
+    abrirFicha(parcela.id, e.lngLat, parcela.properties.id)
+    avisarEleccion(parcela.id)
   })
   for (const capa of CAPAS_CLIC) {
     mapa.on('mouseenter', capa, () => (mapa.getCanvas().style.cursor = 'pointer'))
@@ -118,23 +149,40 @@ export function crearMapa(contenedor, { conFondo = true } = {}) {
 
     /**
      * Muestra el resultado de una revisión.
-     * @param {{urlCapa: string, limites: number[]|null, resultados: import('../motor/index.js').Resultado[]}} datos
+     * @param {{urlCapa: string, urlHallazgos: string, limites: number[]|null, hallazgos: import('../lista/datos.js').Hallazgo[]}} datos
+     *   Las dos URLs son de los Blob que arma el worker: MapLibre las lee en su propio worker.
      */
-    mostrar({ urlCapa, limites, resultados: nuevos }) {
-      ficha.remove()
+    mostrar({ urlCapa, urlHallazgos, limites, hallazgos: nuevos }) {
+      cerrarFicha()
       seleccion = null
-      resultados = nuevos
+      hallazgos = nuevos
       estado.parcelas = urlCapa
-      estado.hallazgos = capaDeHallazgos(nuevos)
+      estado.hallazgos = urlHallazgos
       ponerDatos()
       if (limites) mapa.fitBounds(limites, { padding: 40, maxZoom: 16, duration: 600 })
     },
 
+    /**
+     * Lleva el mapa a un hallazgo y abre la ficha de su parcela. Un hallazgo sin
+     * ubicación (R1) no se puede mostrar.
+     * @param {import('../lista/datos.js').Hallazgo} hallazgo
+     */
+    enfocar({ indice, ubicacion }) {
+      if (!ubicacion) return
+      mapa.flyTo({ center: ubicacion, zoom: Math.max(mapa.getZoom(), 16), duration: 800 })
+      abrirFicha(indice, ubicacion)
+    },
+
+    /** `alElegir(indice)` se llama cuando la persona elige una parcela en el mapa, o `null` al cerrar su ficha. */
+    alElegir(funcion) {
+      avisarEleccion = funcion
+    },
+
     /** Quita las parcelas, por ejemplo cuando el archivo nuevo no se pudo leer. */
     limpiar() {
-      ficha.remove()
+      cerrarFicha()
       seleccion = null
-      resultados = []
+      hallazgos = []
       estado.parcelas = undefined
       estado.hallazgos = undefined
       ponerDatos()

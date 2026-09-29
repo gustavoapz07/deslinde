@@ -64,7 +64,7 @@ function revisarParcela(p, opciones) {
   const r6 = reglaR6(p) // antes de R7, para que los números de vértice sean los del archivo
   hallazgos.push(r6, ...reglaR7(p), reglaR8(p))
   if (!r6) hallazgos.push(reglaR12(p, opciones.umbralAreaPct))
-  return { hallazgos, comparable: !r6, dibujable: true }
+  return { hallazgos, comparable: !r6, dibujable: true, cruzada: Boolean(r6) }
 }
 
 /**
@@ -88,12 +88,14 @@ export function analizar(texto, opciones = {}) {
   const encontrados = []
   const comparables = []
   const dibujables = []
+  const cruzadas = new Set()
 
   for (const p of parcelas) {
-    const { hallazgos, comparable, dibujable } = revisarParcela(p, o)
+    const { hallazgos, comparable, dibujable, cruzada } = revisarParcela(p, o)
     for (const h of hallazgos) if (h) encontrados.push({ parcela: p, ...h })
     if (comparable) comparables.push(p)
     dibujables[p.indice] = dibujable
+    if (cruzada) cruzadas.add(p.indice)
     const hechas = p.indice + 1
     if (hechas % AVISAR_CADA === 0 || hechas === parcelas.length) {
       avisar({ fase: 'revisando', hechas, total: parcelas.length })
@@ -119,15 +121,19 @@ export function analizar(texto, opciones = {}) {
   const conAdvertencia = new Set(encontrados.filter((r) => r.severidad === 'advertencia').map((r) => r.parcela.indice))
   const errores = resultados.filter((r) => r.severidad === 'error').length
 
-  /** @type {{severidad: 'error'|'advertencia'|'ok', dibujable: boolean}[]} */
+  /** @type {{severidad: 'error'|'advertencia'|'ok', dibujable: boolean, cruzada: boolean}[]} */
   const estados = parcelas.map((p) => ({
     severidad: conError.has(p.indice) ? 'error' : conAdvertencia.has(p.indice) ? 'advertencia' : 'ok',
     dibujable: dibujables[p.indice],
+    cruzada: cruzadas.has(p.indice), // R6: se dibuja como contorno, ver trabajo.js
   }))
 
   return {
     parcelas,
     estados,
+    // Posición en el archivo de la parcela de cada resultado, en el mismo orden.
+    // El código (`parcela`) puede repetirse en un archivo; la posición no.
+    indices: encontrados.map((r) => r.parcela.indice),
     informe: {
       parcelas: parcelas.length,
       resultados,

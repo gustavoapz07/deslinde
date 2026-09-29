@@ -4,8 +4,10 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { unirIndices } from '../src/lista/datos.js'
 import { validarTexto } from '../src/motor/index.js'
-import { CAPAS, CAPAS_CLIC, capaDeHallazgos, construirEstilo, esCapaPropia, fichaDeParcela } from '../src/mapa/capas.js'
+import { capaDeHallazgos, procesar } from '../src/motor/trabajo.js'
+import { CAPAS, CAPAS_CLIC, construirEstilo, esCapaPropia, fichaDeParcela } from '../src/mapa/capas.js'
 import { DIR_DATOS } from '../scripts/generar-datos.js'
 
 const informe = validarTexto(readFileSync(join(DIR_DATOS, 'errores-mezclados.geojson'), 'utf8'))
@@ -76,6 +78,11 @@ describe('capa de hallazgos', () => {
     expect(capa.features[0].properties).toEqual({ parcela: conUbicacion[0].parcela, regla: conUbicacion[0].regla, severidad: conUbicacion[0].severidad })
   })
 
+  it('el worker la entrega lista como Blob', async () => {
+    const { archivos, informe: inf } = procesar(readFileSync(join(DIR_DATOS, 'errores-mezclados.geojson'), 'utf8'))
+    expect(JSON.parse(await archivos.hallazgos.text())).toEqual(capaDeHallazgos(inf.resultados))
+  })
+
   it('un hallazgo sin ubicación no se dibuja', () => {
     const capa = capaDeHallazgos([{ parcela: 'P-1', regla: 'R1', severidad: 'error', ubicacion: null, mensaje: '', accion: '' }])
     expect(capa.features).toEqual([])
@@ -83,17 +90,37 @@ describe('capa de hallazgos', () => {
 })
 
 describe('ficha de una parcela', () => {
+  const texto = readFileSync(join(DIR_DATOS, 'errores-mezclados.geojson'), 'utf8')
+  const { informe: inf, indices } = procesar(texto)
+  const hallazgos = unirIndices(inf.resultados, indices)
+  const indiceDe = (id) => hallazgos.find((h) => h.parcela === id).indice
+
   it('trae el estado y los hallazgos de esa parcela', () => {
-    const ficha = fichaDeParcela({ id: 'P-E01', severidad: 'error' }, informe.resultados)
+    const ficha = fichaDeParcela(indiceDe('P-E01'), hallazgos, 'P-E01')
     expect(ficha.titulo).toBe('P-E01')
     expect(ficha.estado).toBe('Con errores')
     expect(ficha.hallazgos.map((h) => h.regla)).toEqual(['R6'])
     expect(ficha.hallazgos[0].mensaje).toMatch(/se cruza consigo mismo/)
   })
 
+  it('desde la lista, sin código a mano, lo toma de los hallazgos', () => {
+    const ficha = fichaDeParcela(indiceDe('P-E14'), hallazgos)
+    expect(ficha.titulo).toBe('P-E14')
+    expect(ficha.estado).toBe('Solo advertencias')
+  })
+
   it('una parcela sin hallazgos lo dice', () => {
-    const ficha = fichaDeParcela({ id: 'P-00001', severidad: 'ok' }, informe.resultados)
+    const ficha = fichaDeParcela(0, hallazgos, 'P-00001')
     expect(ficha.estado).toBe('Sin hallazgos')
     expect(ficha.hallazgos).toEqual([])
+  })
+
+  it('dos parcelas con el mismo código no mezclan sus hallazgos', () => {
+    const repetidas = [
+      { parcela: 'P-1', indice: 0, regla: 'R2', severidad: 'error', ubicacion: [-88, 14.5], mensaje: 'a', accion: '' },
+      { parcela: 'P-1', indice: 1, regla: 'R12', severidad: 'advertencia', ubicacion: [-88, 14.6], mensaje: 'b', accion: '' },
+    ]
+    expect(fichaDeParcela(1, repetidas).hallazgos.map((h) => h.regla)).toEqual(['R12'])
+    expect(fichaDeParcela(1, repetidas).estado).toBe('Solo advertencias')
   })
 })

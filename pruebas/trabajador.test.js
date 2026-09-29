@@ -42,6 +42,21 @@ describe('trabajo del worker', () => {
     expect(sanas.every((p) => p.severidad === 'ok')).toBe(true)
   })
 
+  it('una parcela que se cruza (R6) va como contorno, con los mismos vértices', async () => {
+    const { informe, archivos } = procesar(archivo('errores-mezclados.geojson'))
+    const cruzada = informe.resultados.find((r) => r.regla === 'R6').parcela
+    const feature = (await leerJSON(archivos.mapa)).features.find((f) => f.properties.id === cruzada)
+    const original = JSON.parse(archivo('casos/01-autointerseccion.geojson')).features[0].geometry
+    expect(feature.geometry).toEqual({ type: 'MultiLineString', coordinates: original.coordinates })
+    expect(feature.properties.severidad).toBe('error')
+  })
+
+  it('las demás parcelas siguen como polígonos o puntos', async () => {
+    const { archivos } = procesar(archivo('valido.geojson'))
+    const tipos = new Set((await leerJSON(archivos.mapa)).features.map((f) => f.geometry.type))
+    expect([...tipos].every((t) => ['Polygon', 'MultiPolygon', 'Point'].includes(t))).toBe(true)
+  })
+
   it('las parcelas con pares invertidos se dibujan ya corregidas, en Honduras', async () => {
     const { informe, archivos } = procesar(archivo('errores-mezclados.geojson'))
     const invertida = informe.resultados.find((r) => r.regla === 'R3').parcela

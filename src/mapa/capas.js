@@ -1,6 +1,8 @@
 // Estilo de las capas de Deslinde sobre el mapa base, sin depender de MapLibre,
 // para poder probarlo en Node. mapa/index.js lo usa para dibujar.
 
+import { peorSeveridad } from '../lista/datos.js'
+
 export const ESTILO_BASE = 'https://tiles.openfreemap.org/styles/positron'
 
 // Caja aproximada de Honduras, la misma de R4: vista inicial antes de cargar un archivo.
@@ -30,10 +32,11 @@ export const FUENTE_HALLAZGOS = 'hallazgos'
 /** Capas propias, en orden de dibujo. Todas empiezan con "deslinde-". */
 export const CAPAS = [
   {
+    // Solo polígonos: las parcelas que se cruzan (R6) vienen como contorno y no se rellenan.
     id: 'deslinde-relleno',
     type: 'fill',
     source: FUENTE_PARCELAS,
-    filter: ['!=', ['geometry-type'], 'Point'],
+    filter: ['match', ['geometry-type'], ['Polygon', 'MultiPolygon'], true, false],
     paint: {
       'fill-color': porSeveridad(COLORES),
       'fill-opacity': seleccionada(0.65, porSeveridad({ error: 0.4, advertencia: 0.4, ok: 0.25 })),
@@ -102,39 +105,27 @@ export function construirEstilo({ base = null, parcelas = VACIA, hallazgos = VAC
   }
 }
 
-/** Capas donde un clic elige una parcela. */
-export const CAPAS_CLIC = ['deslinde-relleno', 'deslinde-punto']
+/** Capas donde un clic elige una parcela. El borde cuenta para las que solo tienen contorno. */
+export const CAPAS_CLIC = ['deslinde-relleno', 'deslinde-borde', 'deslinde-punto']
 
 export const esCapaPropia = (id) => id.startsWith('deslinde-')
 
 /**
- * Puntos de los hallazgos que traen ubicación, para la capa "deslinde-hallazgo".
- * @param {import('../motor/index.js').Resultado[]} resultados
+ * Lo que dice la ficha de una parcela: código, estado y sus hallazgos. Busca
+ * por posición en el archivo, porque dos parcelas pueden traer el mismo código.
+ * Devuelve datos, no HTML: los textos vienen del archivo del usuario y la
+ * página los escribe como texto.
+ * @param {number} indice
+ * @param {import('../lista/datos.js').Hallazgo[]} hallazgos  Todos los del archivo.
+ * @param {string} [id]  Código de la parcela, si se conoce (una parcela sin hallazgos no lo trae en la lista).
  */
-export function capaDeHallazgos(resultados) {
+export function fichaDeParcela(indice, hallazgos, id) {
+  const propios = hallazgos.filter((h) => h.indice === indice)
+  const severidad = peorSeveridad(propios)
   return {
-    type: 'FeatureCollection',
-    features: resultados
-      .filter((r) => r.ubicacion)
-      .map((r) => ({
-        type: 'Feature',
-        properties: { parcela: r.parcela, regla: r.regla, severidad: r.severidad },
-        geometry: { type: 'Point', coordinates: r.ubicacion },
-      })),
-  }
-}
-
-/**
- * Lo que dice la ventanita al hacer clic en una parcela: código, estado y sus
- * hallazgos. Devuelve datos, no HTML: los textos vienen del archivo del usuario
- * y la página los escribe como texto.
- */
-export function fichaDeParcela({ id, severidad }, resultados) {
-  const hallazgos = resultados.filter((r) => r.parcela === id)
-  return {
-    titulo: id,
+    titulo: id ?? propios[0]?.parcela ?? `n.º ${indice + 1}`,
     estado: NOMBRES[severidad],
     severidad,
-    hallazgos: hallazgos.map((r) => ({ regla: r.regla, severidad: r.severidad, mensaje: r.mensaje, accion: r.accion })),
+    hallazgos: propios.map((h) => ({ regla: h.regla, severidad: h.severidad, mensaje: h.mensaje, accion: h.accion })),
   }
 }

@@ -17,7 +17,8 @@ export const MENSAJE_INTERNO =
  * @property {import('./index.js').Informe} informe
  * @property {[number, number, number, number]|null} limites  Caja para encuadrar el mapa: las parcelas dibujables dentro de Honduras, o todas si ninguna lo está.
  * @property {{error: number, advertencia: number, ok: number, sinDibujar: number}} conteo  Parcelas por peor severidad, para la leyenda.
- * @property {{mapa: Blob, informe: Blob, corregido: Blob}} archivos
+ * @property {number[]} indices  Posición en el archivo de la parcela de cada resultado del informe, en el mismo orden.
+ * @property {{mapa: Blob, hallazgos: Blob, informe: Blob, corregido: Blob}} archivos  Capas del mapa y descargas.
  */
 
 const dentroDeHonduras = ([oeste, sur, este, norte]) =>
@@ -40,20 +41,48 @@ function contar(estados) {
   return conteo
 }
 
+// Una parcela que se cruza consigo misma (R6) va como contorno, con sus anillos
+// como líneas. MapLibre descarta al cortar en teselas los anillos de área casi
+// nula, y en un moño los dos lóbulos se restan hasta dar cero: como polígono,
+// la parcela desaparecía del mapa (visto el 28-09-2026).
+function contorno(p) {
+  const anillos = p.tipo === 'Polygon' ? p.coords : p.coords.flat()
+  return { type: 'MultiLineString', coordinates: anillos }
+}
+
 // Capa del mapa: una parcela por Feature, con su peor severidad. Las que no se
 // pueden dibujar (R1, anillos incompletos) quedan fuera; siguen en el informe.
 export function capaDelMapa(parcelas, estados) {
   const features = []
   for (const p of parcelas) {
-    const { severidad, dibujable } = estados[p.indice]
+    const { severidad, dibujable, cruzada } = estados[p.indice]
     if (!dibujable) continue
     features.push({
       type: 'Feature',
       properties: { indice: p.indice, id: p.etiqueta, severidad },
-      geometry: { type: p.tipo, coordinates: p.coords },
+      geometry: cruzada ? contorno(p) : { type: p.tipo, coordinates: p.coords },
     })
   }
   return { type: 'FeatureCollection', features }
+}
+
+/**
+ * Puntos de los hallazgos que traen ubicación, para la capa "deslinde-hallazgo"
+ * del mapa. Se arma aquí y no en la página: con miles de hallazgos, armarla y
+ * pasársela a MapLibre trababa la página.
+ * @param {import('./index.js').Resultado[]} resultados
+ */
+export function capaDeHallazgos(resultados) {
+  return {
+    type: 'FeatureCollection',
+    features: resultados
+      .filter((r) => r.ubicacion)
+      .map((r) => ({
+        type: 'Feature',
+        properties: { parcela: r.parcela, regla: r.regla, severidad: r.severidad },
+        geometry: { type: 'Point', coordinates: r.ubicacion },
+      })),
+  }
 }
 
 /**
@@ -61,15 +90,17 @@ export function capaDelMapa(parcelas, estados) {
  * @returns {ResultadoDelTrabajo}
  */
 export function procesar(texto, opciones = {}) {
-  const { parcelas, estados, informe } = analizar(texto, opciones)
+  const { parcelas, estados, indices, informe } = analizar(texto, opciones)
   opciones.alAvanzar?.({ fase: 'salidas' })
   const mapa = capaDelMapa(parcelas, estados)
   return {
     informe,
     limites: encuadre(mapa),
     conteo: contar(estados),
+    indices,
     archivos: {
       mapa: new Blob([JSON.stringify(mapa)], { type: 'application/geo+json' }),
+      hallazgos: new Blob([JSON.stringify(capaDeHallazgos(informe.resultados))], { type: 'application/geo+json' }),
       informe: new Blob([informeCSV(informe)], { type: 'text/csv;charset=utf-8' }),
       corregido: new Blob([escribirCorregido(parcelas)], { type: 'application/geo+json' }),
     },

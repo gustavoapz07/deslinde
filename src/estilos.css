@@ -69,7 +69,7 @@ body {
   border-right: 1px solid var(--linea);
 }
 
-.panel section + section,
+.panel section:not(.carga),
 .panel .aviso {
   margin-top: 20px;
   padding-top: 16px;
@@ -178,6 +178,113 @@ body {
 .mapa {
   position: relative;
   min-height: 0;
+}
+
+/* Lista de hallazgos */
+.filtros {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.filtros label {
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+  color: var(--tinta-suave);
+}
+
+.filtros select {
+  font: inherit;
+  font-size: 14px;
+  color: var(--tinta);
+  padding: 4px 6px;
+  border: 1px solid var(--linea);
+  border-radius: 4px;
+  background: var(--papel);
+  max-width: 100%;
+}
+
+.hallazgos {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.hallazgo {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--linea);
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+}
+
+button.hallazgo {
+  cursor: pointer;
+}
+
+button.hallazgo:hover {
+  background: var(--fondo);
+}
+
+button.hallazgo:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: -2px;
+}
+
+.hallazgo.activa {
+  background: color-mix(in srgb, var(--acento) 10%, transparent);
+  border-left-color: var(--acento);
+}
+
+.hallazgo-cabeza {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hallazgo-cabeza .regla {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--tinta-suave);
+  font-variant-numeric: tabular-nums;
+}
+
+.hallazgo-mensaje {
+  font-size: 13px;
+  color: var(--tinta-suave);
+}
+
+.marca {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.marca.error {
+  background: var(--error);
+}
+
+.marca.advertencia {
+  background: var(--advertencia);
+}
+
+.mas {
+  margin-top: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  color: var(--acento);
+  background: var(--papel);
+  border: 1px solid var(--acento);
+  border-radius: 4px;
+  cursor: pointer;
 }
 
 /* Ficha de una parcela en el mapa */

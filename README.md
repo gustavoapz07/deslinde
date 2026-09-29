@@ -16,7 +16,7 @@ La investigación, las decisiones y el plan están en la bóveda de Obsidian `Ag
 |------|--------|
 | 0. Preparar: stack, datos sintéticos, pruebas escritas | Hecha el 28-09-2026 |
 | 1. Motor de validación (R1 a R12) y salidas | Hecha el 28-09-2026: 36 pruebas pasan; 10,000 parcelas en unos 0.5 s |
-| 2. Interfaz: carga, mapa, lista de errores | En curso: Web Worker, carga, descargas y mapa con las parcelas por severidad (65 pruebas pasan). Faltan la lista de errores y el diseño final |
+| 2. Interfaz: carga, mapa, lista de errores | En curso: Web Worker, carga, descargas, mapa por severidad y lista de hallazgos enlazada al mapa (80 pruebas pasan). Falta el diseño final |
 | 3. Auditoría y publicación | Pendiente |
 
 ## Cómo correrlo
@@ -105,17 +105,36 @@ Medido el 28-09-2026 en el navegador, con el build de producción y el archivo d
 - **Colores por severidad**: rojo oscuro (errores), ámbar (solo advertencias) y azul (sin hallazgos).
   Se distinguen por tono y por claridad, también con daltonismo rojo-verde; el borde del error es más grueso.
 - **Puntos negros**: dónde está cada problema (el cruce, el vértice repetido…), desde zoom 12.
+- **Parcelas que se cruzan (R6)**: se dibujan como contorno. Como polígono, un moño tiene área neta cero y
+  MapLibre lo descarta al cortar en teselas: la parcela desaparecía del mapa.
 - **Clic en una parcela**: ficha con su código, estado, hallazgos y qué hacer. Los textos del archivo se escriben como texto, nunca como HTML.
+  Si el clic no cae dentro de una parcela, se busca en un margen de 6 px, para acertarle a un contorno o a un punto con el dedo.
 - **Encuadre**: las parcelas dentro de Honduras. Una parcela lejana (R4) se dibuja igual, pero no achica el resto.
 - **Mapa base apagable**: sin él, el estilo no tiene ninguna dirección de internet y el mapa no pide nada.
   La preferencia se recuerda en el navegador. Si OpenFreeMap no responde, las parcelas se ven sobre fondo liso.
 - **Auditoría de privacidad**: `#mapa[data-peticiones-externas]` cuenta las peticiones del mapa que salen del equipo.
   Con el mapa base apagado no sube al mover ni acercar el mapa.
 
-La capa de parcelas llega del worker como URL de un `Blob`: MapLibre la lee y la corta en su propio worker.
+Las capas de parcelas y de hallazgos llegan del worker como URL de un `Blob`: MapLibre las lee y las corta en su propio worker.
 Con 10,000 parcelas la página no se congela; MapLibre tiene pausas ocasionales de 50 a 160 ms al cargar teselas nuevas.
 
 La parte que no necesita MapLibre (estilo, capas, ficha) está en `src/mapa/capas.js` y se prueba en Node (`pruebas/mapa.test.js`).
+
+## Lista de hallazgos
+
+`src/lista/` muestra los hallazgos en el panel, enlazados con el mapa:
+
+- **Hallazgo → mapa**: al elegir uno, el mapa va a la ubicación del problema y abre la ficha de su parcela.
+  En celular, además, trae el mapa a la vista. Los hallazgos sin ubicación (R1) se muestran como texto.
+- **Mapa → lista**: al elegir una parcela en el mapa, la lista marca sus hallazgos y los centra en el panel. Al cerrar la ficha, se desmarcan.
+- **Filtros** por severidad y por regla, con la cantidad de cada una: sirve para ver cuál es el problema más común.
+- **De a 100**: la lista dibuja un tramo de 100 hallazgos, con "Mostrar 100 más" y "Mostrar 100 anteriores".
+  Si se elige en el mapa una parcela que cae más abajo, la lista salta a su tramo en vez de dibujar todo lo anterior
+  (con 10,000 hallazgos, dibujarlos todos congelaba la página 1.85 s).
+- Cada hallazgo sabe la posición de su parcela en el archivo (`indices`, que entrega el worker), no solo su código:
+  dos parcelas con el mismo código no se mezclan.
+
+La parte sin DOM (filtros, conteo por regla, tramo) está en `src/lista/datos.js` y se prueba en Node (`pruebas/lista.test.js`).
 
 ## Reglas
 

@@ -1,8 +1,10 @@
 // Interfaz de Deslinde (Fase 2): cargar un archivo, revisarlo en el Web Worker
-// con el avance en pantalla, ver las parcelas en el mapa y descargar las salidas.
-// La lista de errores enlazada al mapa viene después.
+// con el avance en pantalla, ver las parcelas en el mapa, recorrer la lista de
+// hallazgos enlazada al mapa y descargar las salidas.
 
 import './estilos.css'
+import { unirIndices } from './lista/datos.js'
+import { crearLista } from './lista/index.js'
 import { COLORES, NOMBRES } from './mapa/capas.js'
 import { crearMapa } from './mapa/index.js'
 import { Cancelado, crearValidador } from './validador.js'
@@ -20,20 +22,23 @@ document.querySelector('#app').innerHTML = `
         <p class="nota">GeoJSON con polígonos o puntos, o CSV de puntos. Se revisa en este equipo: el archivo no se sube a ningún servidor.</p>
         <p id="estado" role="status" aria-live="polite"></p>
       </section>
-      <section id="resultado" hidden>
-        <h2>Resultado</h2>
-        <p id="resumen"></p>
-        <ul class="leyenda">
-          ${['error', 'advertencia', 'ok']
-            .map((s) => `<li><span class="muestra ${s}"></span>${NOMBRES[s]}<span class="cuenta" id="cuenta-${s}"></span></li>`)
-            .join('')}
-        </ul>
-        <p class="nota" id="sin-dibujar" hidden></p>
-        <div class="descargas">
-          <a id="bajar-informe">Descargar el informe (CSV)</a>
-          <a id="bajar-corregido">Descargar el GeoJSON corregido</a>
-        </div>
-      </section>
+      <div id="resultado" hidden>
+        <section>
+          <h2>Resultado</h2>
+          <p id="resumen"></p>
+          <ul class="leyenda">
+            ${['error', 'advertencia', 'ok']
+              .map((s) => `<li><span class="muestra ${s}"></span>${NOMBRES[s]}<span class="cuenta" id="cuenta-${s}"></span></li>`)
+              .join('')}
+          </ul>
+          <p class="nota" id="sin-dibujar" hidden></p>
+          <div class="descargas">
+            <a id="bajar-informe">Descargar el informe (CSV)</a>
+            <a id="bajar-corregido">Descargar el GeoJSON corregido</a>
+          </div>
+        </section>
+        <section id="lista" class="lista"></section>
+      </div>
       <section class="fondo">
         <label><input id="fondo" type="checkbox" /> Mostrar mapa base</label>
         <p class="nota">Con el mapa base, OpenFreeMap recibe qué zona del mapa se está mirando, no el archivo. Apáguelo si trabaja con parcelas reales y no quiere que nadie sepa dónde están.</p>
@@ -70,6 +75,15 @@ function guardarPreferencia(visible) {
 const conFondo = leerPreferencia()
 $('#fondo').checked = conFondo
 const mapa = crearMapa($('#mapa'), { conFondo })
+const lista = crearLista($('#lista'), {
+  alElegir: (hallazgo) => {
+    mapa.enfocar(hallazgo)
+    // En celular el mapa queda debajo del panel: se trae a la vista. En pantallas
+    // anchas ya está a la vista y esto no mueve nada.
+    $('#mapa').scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  },
+})
+mapa.alElegir((indice) => lista.marcar(indice))
 const validador = crearValidador()
 let urls = []
 
@@ -112,7 +126,7 @@ $('#archivo').addEventListener('change', async (evento) => {
   const formato = /\.csv$/i.test(archivo.name) ? 'csv' : 'geojson'
   const inicio = performance.now()
   try {
-    const { informe, limites, conteo, archivos } = await validador.validar(archivo, {
+    const { informe, limites, conteo, indices, archivos } = await validador.validar(archivo, {
       formato,
       alAvanzar: (avance) => ($('#estado').textContent = FASES[avance.fase](avance)),
     })
@@ -135,9 +149,11 @@ $('#archivo').addEventListener('change', async (evento) => {
       '(coordenadas ilegibles o que no están en grados). Aparecen en el informe.'
     enlazar($('#bajar-informe'), archivos.informe, `${nombreBase(archivo.name)}-informe.csv`)
     enlazar($('#bajar-corregido'), archivos.corregido, `${nombreBase(archivo.name)}-corregido.geojson`)
+    const hallazgos = unirIndices(informe.resultados, indices)
+    lista.mostrar(hallazgos)
     $('#resultado').hidden = false
 
-    mapa.mostrar({ urlCapa: nuevaUrl(archivos.mapa), limites, resultados: informe.resultados })
+    mapa.mostrar({ urlCapa: nuevaUrl(archivos.mapa), urlHallazgos: nuevaUrl(archivos.hallazgos), limites, hallazgos })
     // MapLibre lee la capa en su worker; se deja un margen antes de soltar las URLs viejas.
     setTimeout(() => viejas.forEach((url) => URL.revokeObjectURL(url)), 5000)
   } catch (e) {
@@ -145,5 +161,6 @@ $('#archivo').addEventListener('change', async (evento) => {
     // Los mensajes de ErrorDeArchivo ya dicen qué falla en el archivo; los demás, que no es culpa del archivo.
     $('#estado').textContent = e.message
     mapa.limpiar() // que no queden a la vista las parcelas del archivo anterior
+    lista.limpiar()
   }
 })
