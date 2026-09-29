@@ -17,7 +17,7 @@ import {
 } from './reglas.js'
 
 export { ErrorDeArchivo } from './lector.js'
-export { geojsonCorregido, informeCSV } from './salidas.js'
+export { escribirCorregido, geojsonCorregido, informeCSV } from './salidas.js'
 
 /**
  * @typedef {Object} Resultado
@@ -42,45 +42,65 @@ export const OPCIONES_POR_DEFECTO = {
   solapeMinimoM2: 10, // R10: solapes menores se toman como ruido de medición [hipótesis]
 }
 
-// Revisa una parcela sola. Devuelve sus hallazgos y si su geometría sirve para
-// compararla con las demás (R10 y R11).
+// Cada cuántas parcelas se avisa el avance: unas 20 veces con 10,000 parcelas.
+const AVISAR_CADA = 500
+
+// Revisa una parcela sola. Devuelve sus hallazgos, si su geometría sirve para
+// compararla con las demás (R10 y R11) y si se puede dibujar en el mapa.
 function revisarParcela(p, opciones) {
   const r1 = reglaR1(p)
-  if (r1) return { hallazgos: [r1], comparable: false }
+  if (r1) return { hallazgos: [r1], comparable: false, dibujable: false }
 
   const hallazgos = [reglaR3yR4(p, opciones.formato), reglaR2(p)]
   if (p.tipo === 'Point') {
     hallazgos.push(reglaR9(p))
-    return { hallazgos, comparable: true }
+    return { hallazgos, comparable: true, dibujable: true }
   }
 
   const r5 = reglaR5(p)
   hallazgos.push(...r5.hallazgos)
-  if (r5.incompleto) return { hallazgos, comparable: false }
+  if (r5.incompleto) return { hallazgos, comparable: false, dibujable: false }
 
   const r6 = reglaR6(p) // antes de R7, para que los números de vértice sean los del archivo
   hallazgos.push(r6, ...reglaR7(p), reglaR8(p))
   if (!r6) hallazgos.push(reglaR12(p, opciones.umbralAreaPct))
-  return { hallazgos, comparable: !r6 }
+  return { hallazgos, comparable: !r6, dibujable: true }
 }
+
+/**
+ * @typedef {Object} Avance
+ * @property {'leyendo'|'revisando'|'comparando'|'salidas'} fase
+ * @property {number} [hechas]  Parcelas revisadas (solo en 'revisando').
+ * @property {number} [total]
+ */
 
 /**
  * Lee y revisa un archivo. Devuelve también las parcelas ya corregidas
  * (pares invertidos, anillos cerrados, vértices repetidos quitados) para
- * escribir el GeoJSON corregido.
+ * escribir el GeoJSON corregido, y el estado de cada parcela para el mapa.
+ * `opciones.alAvanzar(avance)` recibe el avance, para mostrarlo en pantalla.
  */
 export function analizar(texto, opciones = {}) {
   const o = { ...OPCIONES_POR_DEFECTO, ...opciones }
+  const avisar = o.alAvanzar ?? (() => {})
+  avisar({ fase: 'leyendo' })
   const parcelas = leer(texto, o.formato)
   const encontrados = []
   const comparables = []
+  const dibujables = []
 
   for (const p of parcelas) {
-    const { hallazgos, comparable } = revisarParcela(p, o)
+    const { hallazgos, comparable, dibujable } = revisarParcela(p, o)
     for (const h of hallazgos) if (h) encontrados.push({ parcela: p, ...h })
     if (comparable) comparables.push(p)
+    dibujables[p.indice] = dibujable
+    const hechas = p.indice + 1
+    if (hechas % AVISAR_CADA === 0 || hechas === parcelas.length) {
+      avisar({ fase: 'revisando', hechas, total: parcelas.length })
+    }
   }
 
+  avisar({ fase: 'comparando' })
   const r11 = reglaR11(comparables)
   encontrados.push(...r11.hallazgos, ...reglaR10(comparables, r11.duplicadas, o.solapeMinimoM2))
 
@@ -96,10 +116,18 @@ export function analizar(texto, opciones = {}) {
     accion,
   }))
   const conError = new Set(encontrados.filter((r) => r.severidad === 'error').map((r) => r.parcela.indice))
+  const conAdvertencia = new Set(encontrados.filter((r) => r.severidad === 'advertencia').map((r) => r.parcela.indice))
   const errores = resultados.filter((r) => r.severidad === 'error').length
+
+  /** @type {{severidad: 'error'|'advertencia'|'ok', dibujable: boolean}[]} */
+  const estados = parcelas.map((p) => ({
+    severidad: conError.has(p.indice) ? 'error' : conAdvertencia.has(p.indice) ? 'advertencia' : 'ok',
+    dibujable: dibujables[p.indice],
+  }))
 
   return {
     parcelas,
+    estados,
     informe: {
       parcelas: parcelas.length,
       resultados,

@@ -36,7 +36,11 @@ function marcar(valor) {
  * Acepta también el CSV de puntos, que sale convertido a GeoJSON.
  */
 export function geojsonCorregido(texto, opciones = {}) {
-  const { parcelas } = analizar(texto, opciones)
+  return escribirCorregido(analizar(texto, opciones).parcelas)
+}
+
+/** Igual que geojsonCorregido, pero con las parcelas que ya devolvió `analizar`. */
+export function escribirCorregido(parcelas) {
   const lineas = parcelas.map((p) => {
     const geometry = p.tipo === undefined ? null : { type: p.tipo, coordinates: p.textos === undefined ? null : marcar(p.textos) }
     return JSON.stringify({ type: 'Feature', properties: p.propiedades, geometry }).replace(/"#(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)#"/g, '$1')

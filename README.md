@@ -16,7 +16,7 @@ La investigación, las decisiones y el plan están en la bóveda de Obsidian `Ag
 |------|--------|
 | 0. Preparar: stack, datos sintéticos, pruebas escritas | Hecha el 28-09-2026 |
 | 1. Motor de validación (R1 a R12) y salidas | Hecha el 28-09-2026: 36 pruebas pasan; 10,000 parcelas en unos 0.5 s |
-| 2. Interfaz: carga, mapa, lista de errores | Pendiente |
+| 2. Interfaz: carga, mapa, lista de errores | En curso: el motor corre en un Web Worker (53 pruebas pasan) y la página ya carga archivos y ofrece las descargas. Faltan el mapa y la lista |
 | 3. Auditoría y publicación | Pendiente |
 
 ## Cómo correrlo
@@ -66,6 +66,37 @@ anillos (R5) y quita vértices repetidos seguidos (R7). Lo demás queda como ven
 Cada número se escribe con su texto original: no se pierden ceros finales ni se agregan decimales.
 
 **Opciones** (valores iniciales, por probar): `umbralAreaPct: 10` para R12 y `solapeMinimoM2: 10` para R10.
+`alAvanzar(avance)` recibe el avance: `leyendo`, `revisando` (cada 500 parcelas, con `hechas` y `total`) y `comparando`.
+
+## En la página: Web Worker
+
+La página no llama al motor directamente: lo corre en un Web Worker (`src/motor/trabajador.js`)
+para que un archivo grande no congele la pantalla.
+
+```js
+import { crearValidador, Cancelado, ErrorDeArchivo } from './src/validador.js'
+
+const validador = crearValidador()
+const { informe, limites, archivos } = await validador.validar(archivo, {
+  formato: 'geojson',                  // o 'csv'
+  alAvanzar: (avance) => { /* mostrar el avance */ },
+})
+// archivos.mapa: capa GeoJSON para MapLibre, una parcela por Feature con su peor severidad
+// archivos.informe y archivos.corregido: las descargas, listas para URL.createObjectURL
+// limites: [oeste, sur, este, norte] de las parcelas dibujables, para encuadrar el mapa
+```
+
+- Se le pasa el archivo (`File`) y no el texto: la lectura también ocurre fuera de la página.
+- Las salidas vuelven como `Blob`, así que pasarlas entre hilos no copia su contenido.
+- Un archivo nuevo cancela la revisión anterior (esa promesa se rechaza con `Cancelado`).
+- Un archivo ilegible rechaza con `ErrorDeArchivo`. Un fallo interno rechaza con un mensaje que aclara que no es culpa del archivo.
+
+Medido el 28-09-2026 en el navegador, con el build de producción y el archivo de 10,000 parcelas:
+
+| | Tiempo total | Mayor bloqueo de la página |
+|---|---|---|
+| Con Web Worker | 0.49 a 0.56 s | Ninguna tarea larga; la página responde igual que en reposo (unos 20 ms) |
+| Sin Web Worker (el mismo motor en la página) | 0.53 a 0.62 s | La página queda congelada toda la revisión (527 a 622 ms) |
 
 ## Reglas
 
