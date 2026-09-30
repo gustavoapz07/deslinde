@@ -194,7 +194,11 @@ export function crearMapa(contenedor, { conFondo = true } = {}) {
      */
     enfocar({ indice, ubicacion }) {
       if (!ubicacion) return
-      mapa.flyTo({ center: ubicacion, zoom: Math.max(mapa.getZoom(), 16), duration: 800 })
+      // La ficha se abre hacia arriba del punto. Con el punto algo más abajo del
+      // centro, la ficha no queda debajo del interruptor del mapa base ni del
+      // zoom: en celular el mapa es bajo y se los tapaban.
+      const bajar = Math.round(mapa.getContainer().clientHeight * 0.18)
+      mapa.flyTo({ center: ubicacion, zoom: Math.max(mapa.getZoom(), 16), duration: 800, offset: [0, bajar] })
       abrirFicha(indice, ubicacion)
     },
 
