@@ -4,6 +4,8 @@ Validador de parcelas de café para el EUDR (reglamento europeo contra la defore
 Recibe archivos de parcelas, revisa que la geometría cumpla las reglas de geolocalización
 y muestra los errores en un mapa. Todo ocurre en el navegador: los archivos no se suben a ningún servidor.
 
+**En línea: [deslinde.pages.dev](https://deslinde.pages.dev/)**. El botón «Probar con un ejemplo» carga 24 parcelas inventadas.
+
 > **Herramienta de apoyo.** Deslinde no certifica el cumplimiento del EUDR ni emite dictámenes
 > de deforestación. La responsabilidad legal sigue siendo del operador.
 
@@ -17,7 +19,7 @@ La investigación, las decisiones y el plan están en la bóveda de Obsidian `Ag
 | 0. Preparar: stack, datos sintéticos, pruebas escritas | Hecha el 28-09-2026 |
 | 1. Motor de validación (R1 a R12) y salidas | Hecha el 28-09-2026: 36 pruebas pasan; 10,000 parcelas en unos 0.5 s |
 | 2. Interfaz: carga, mapa, lista de errores | Hecha el 28-09-2026: Web Worker, mapa por severidad, lista enlazada al mapa, ejemplo para probar, veredicto en lenguaje simple y ayuda (80 pruebas pasan) |
-| 3. Auditoría y publicación | En curso: R10 y R11 marcan las dos parcelas del par (82 pruebas pasan) |
+| 3. Auditoría y publicación | Publicada el 30-09-2026 en [deslinde.pages.dev](https://deslinde.pages.dev/), con auditoría, rediseño y privacidad revisados (82 pruebas pasan). Falta la prueba con una persona ajena |
 
 ## Cómo correrlo
 
