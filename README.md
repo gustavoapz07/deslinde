@@ -29,6 +29,8 @@ npm test            # genera los datos sintéticos y corre las pruebas
 npm run test:loop   # pruebas en modo vigilancia, para trabajar regla por regla
 npm run datos       # solo regenera los datos sintéticos
 npm run dev         # página en desarrollo
+npm run build       # build de producción en dist/
+npm run preview     # sirve dist/ con las mismas cabeceras que Cloudflare Pages
 ```
 
 ## Formato de entrada (v0)
@@ -112,6 +114,31 @@ Pensada para técnicos de cooperativas y encargados de cumplimiento, en español
 - **Ayuda plegable**: qué revisa cada regla y qué formato acepta, con el archivo de ejemplo para descargar.
 - **Privacidad**: la casilla del mapa base con lo que recibe OpenFreeMap, y el aviso de herramienta de apoyo.
 - **Celular**: resultado, mapa, lista y ayuda, uno debajo del otro, para que el mapa se vea apenas termina la revisión.
+- **Accesibilidad**: al terminar la revisión o al fallar, un aviso para lectores de pantalla dice el veredicto
+  (`#anuncio`); el avance no se anuncia. Los controles del mapa están en español. La lista es la forma de
+  recorrer los hallazgos con teclado. Si se pidió menos movimiento, el mapa y la página no se animan.
+
+## Peso y seguridad
+
+- **El mapa se carga aparte** (`import()` en `src/main.js`). MapLibre es casi todo el peso: sin él, la página
+  se puede usar con unos 12 KB comprimidos (antes, 296 KB). Los 435 KB del mapa y su worker bajan enseguida,
+  en segundo plano. Si no llegan, la revisión, la lista y las descargas funcionan igual y el mapa lo avisa.
+
+  | Qué | Comprimido (gzip) | Cuándo baja |
+  |-----|-------------------|-------------|
+  | Página (HTML, JS y CSS) | 12 KB | Al abrir |
+  | MapLibre y su CSS | 291 KB | Justo después, en segundo plano |
+  | Worker de MapLibre | 144 KB | Cuando arranca el mapa |
+  | Motor (worker, con Turf) | 26 KB | Al revisar el primer archivo |
+
+- **Política de contenido (CSP)** en `public/_headers`, que Cloudflare Pages aplica a todo el sitio:
+  el navegador solo deja conectar con Deslinde y con `tiles.openfreemap.org`. Aunque un error del código
+  lo intentara, el archivo de parcelas no puede salir del equipo. `vite preview` sirve las mismas cabeceras
+  (`vite.config.js`), así que se prueba en local la política que se publica.
+- `Referrer-Policy: no-referrer`: OpenFreeMap no recibe la dirección de la página.
+
+Para publicar en Cloudflare Pages: comando de build `npm run build`, carpeta de salida `dist`.
+La versión de Node por defecto de Pages (22.16) cumple lo que piden Vite y Vitest.
 
 ## Mapa
 

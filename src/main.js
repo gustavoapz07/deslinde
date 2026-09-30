@@ -8,7 +8,6 @@ import { AYUDA_FORMATO, AYUDA_REGLAS } from './ayuda.js'
 import { unirIndices } from './lista/datos.js'
 import { crearLista } from './lista/index.js'
 import { COLORES, NOMBRES } from './mapa/capas.js'
-import { crearMapa } from './mapa/index.js'
 import { Cancelado, crearValidador } from './validador.js'
 
 const REPOSITORIO = 'https://github.com/gustavoapz07/deslinde'
@@ -46,11 +45,13 @@ document.querySelector('#app').innerHTML = `
           </div>
           <p class="nota">También puede arrastrar el archivo a la página. Se revisa en este equipo: no se sube a ningún servidor.</p>
         </div>
-        <div id="estado" class="estado" role="status" aria-live="polite" hidden>
+        <div id="estado" class="estado" hidden>
           <p id="estado-texto"></p>
-          <progress id="avance"></progress>
+          <progress id="avance" aria-labelledby="estado-texto"></progress>
         </div>
+        <p id="anuncio" class="oculto" role="status" aria-live="polite"></p>
         <div id="resultado" hidden>
+          <h2 class="oculto">Resultado</h2>
           <p class="archivo-actual" id="archivo-actual"></p>
           <p id="veredicto" class="veredicto"></p>
           <p class="nota" id="alcance"></p>
@@ -93,7 +94,7 @@ document.querySelector('#app').innerHTML = `
     </div>
     <div class="mapa-envoltura">
       <div id="mapa" class="mapa" role="region" aria-label="Mapa de las parcelas"></div>
-      <div id="mapa-vacio" class="mapa-vacio"><p>Aquí verá sus parcelas, coloreadas según lo que encuentre la revisión.</p></div>
+      <div id="mapa-vacio" class="mapa-vacio"><p id="mapa-vacio-texto">Aquí verá sus parcelas, coloreadas según lo que encuentre la revisión.</p></div>
     </div>
   </main>
   <div id="soltar" class="soltar" hidden><p>Suelte el archivo para revisarlo</p></div>
@@ -121,15 +122,51 @@ function guardarPreferencia(visible) {
   }
 }
 
+// Lo que se dice a los lectores de pantalla: el final de la revisión y los fallos.
+// El avance no se anuncia, porque con archivos grandes serían veinte avisos seguidos.
+function anunciar(texto) {
+  $('#anuncio').textContent = ''
+  requestAnimationFrame(() => ($('#anuncio').textContent = texto)) // así se repite aunque el texto sea igual
+}
+
 const conFondo = leerPreferencia()
 $('#fondo').checked = conFondo
-const mapa = crearMapa($('#mapa'), { conFondo })
+
+// MapLibre es casi todo el peso de la página (unos 430 KB comprimidos con su
+// worker). Se carga aparte para que la página se pueda usar antes con conexiones
+// lentas: el archivo se revisa y la lista aparece aunque el mapa no haya llegado.
+const mapaListo = import('./mapa/index.js').then(({ crearMapa }) => crearMapa($('#mapa'), { conFondo }))
+let sinMapa = false
+mapaListo.catch(() => {
+  sinMapa = true
+  $('#mapa-vacio-texto').textContent =
+    'No se pudo cargar el mapa (¿se cortó la conexión?). La lista y las descargas funcionan igual. Vuelva a cargar la página para ver el mapa.'
+  $('#mapa-vacio').hidden = false
+})
+// Mientras MapLibre no llega, las órdenes esperan. De mostrar y limpiar solo vale
+// la última: las URLs de un resultado viejo pueden estar ya liberadas.
+let ordenDelMapa = 0
+const mapa = {
+  mostrar: (datos) => {
+    const orden = ++ordenDelMapa
+    mapaListo.then((m) => orden === ordenDelMapa && m.mostrar(datos), () => {})
+  },
+  limpiar: () => {
+    const orden = ++ordenDelMapa
+    mapaListo.then((m) => orden === ordenDelMapa && m.limpiar(), () => {})
+  },
+  enfocar: (hallazgo) => mapaListo.then((m) => m.enfocar(hallazgo), () => {}),
+  alElegir: (funcion) => mapaListo.then((m) => m.alElegir(funcion), () => {}),
+  ponerFondo: (visible) => mapaListo.then((m) => m.ponerFondo(visible), () => !visible), // sin mapa, apagar no falla
+}
 const lista = crearLista($('#lista'), {
   alElegir: (hallazgo) => {
     mapa.enfocar(hallazgo)
     // En celular el mapa queda entre el resumen y la lista: se trae a la vista.
     // En pantallas anchas ya está a la vista y esto no mueve nada.
-    $('#mapa').scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    // MapLibre ya evita sus animaciones si se pidió menos movimiento; el desplazamiento también.
+    const suave = !matchMedia('(prefers-reduced-motion: reduce)').matches
+    $('#mapa').scrollIntoView({ block: 'nearest', behavior: suave ? 'smooth' : 'auto' })
   },
 })
 mapa.alElegir((indice) => lista.marcar(indice))
@@ -229,11 +266,12 @@ function mostrarResultado(archivo, { informe, limites, conteo, indices, archivos
   enlazar($('#bajar-informe'), archivos.informe, `${nombreBase(archivo.name)}-informe.csv`)
   enlazar($('#bajar-corregido'), archivos.corregido, `${nombreBase(archivo.name)}-corregido.geojson`)
   $('#resultado').hidden = false
+  anunciar(`Revisión terminada. ${v.texto}`)
 
   const hallazgos = unirIndices(informe.resultados, indices)
   lista.mostrar(hallazgos)
   $('#lista').hidden = false
-  $('#mapa-vacio').hidden = true
+  $('#mapa-vacio').hidden = !sinMapa // si el mapa no cargó, su aviso se queda
   mapa.mostrar({ urlCapa: nuevaUrl(archivos.mapa), urlHallazgos: nuevaUrl(archivos.hallazgos), limites, hallazgos })
   // MapLibre lee las capas en su worker; se deja un margen antes de soltar las URLs viejas.
   setTimeout(() => viejas.forEach((url) => URL.revokeObjectURL(url)), 5000)
@@ -241,6 +279,7 @@ function mostrarResultado(archivo, { informe, limites, conteo, indices, archivos
 
 function mostrarFallo(mensaje) {
   mostrarEstado(mensaje, { error: true })
+  anunciar(mensaje)
   $('#resultado').hidden = true
   $('#lista').hidden = true
   $('#mapa-vacio').hidden = false

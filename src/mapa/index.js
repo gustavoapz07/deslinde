@@ -19,6 +19,21 @@ import {
 
 setWorkerUrl(workerUrl)
 
+// Textos de los controles de MapLibre en español: los leen los lectores de
+// pantalla y salen como ayuda al pasar el mouse. Faltan los de controles que
+// Deslinde no usa (pantalla completa, ubicación, globo).
+const TEXTOS = {
+  'AttributionControl.ToggleAttribution': 'Mostrar u ocultar los créditos del mapa',
+  'AttributionControl.MapFeedback': 'Reportar un error del mapa',
+  'LogoControl.Title': 'Logo de MapLibre',
+  'Map.Title': 'Mapa',
+  'Marker.Title': 'Marcador',
+  'NavigationControl.ResetBearing': 'Arrastre para girar el mapa; haga clic para volver al norte',
+  'NavigationControl.ZoomIn': 'Acercar',
+  'NavigationControl.ZoomOut': 'Alejar',
+  'Popup.Close': 'Cerrar la ficha',
+}
+
 // Ventanita de una parcela. Todo va como texto: los códigos vienen del archivo.
 function contenidoDeFicha(ficha) {
   const raiz = document.createElement('div')
@@ -76,6 +91,7 @@ export function crearMapa(contenedor, { conFondo = true } = {}) {
     bounds: VISTA_HONDURAS,
     fitBoundsOptions: { padding: 20 },
     attributionControl: { compact: false },
+    locale: TEXTOS,
     transformRequest,
   })
   mapa.addControl(new NavigationControl({ showCompass: false }))
@@ -93,10 +109,19 @@ export function crearMapa(contenedor, { conFondo = true } = {}) {
     hallazgos.setData(estado.hallazgos ?? VACIA)
   }
 
+  // Marca la parcela elegida. Si el estilo se está armando (el mapa recién llegó,
+  // se prendió el fondo o hay datos nuevos), MapLibre no acepta marcas: se ponen
+  // cuando termina, con la selección que haya en ese momento.
   function elegir(indice) {
-    if (seleccion !== null) mapa.setFeatureState({ source: FUENTE_PARCELAS, id: seleccion }, { seleccionada: false })
+    const anterior = seleccion
     seleccion = indice
-    if (indice !== null) mapa.setFeatureState({ source: FUENTE_PARCELAS, id: indice }, { seleccionada: true })
+    const marcar = () => {
+      if (!mapa.getSource(FUENTE_PARCELAS)) return
+      if (anterior !== null) mapa.setFeatureState({ source: FUENTE_PARCELAS, id: anterior }, { seleccionada: false })
+      if (seleccion !== null) mapa.setFeatureState({ source: FUENTE_PARCELAS, id: seleccion }, { seleccionada: true })
+    }
+    if (mapa.isStyleLoaded()) marcar()
+    else mapa.once('idle', marcar)
   }
 
   // La ficha no se cierra sola con un clic en el mapa: el clic de abajo decide si
