@@ -1,5 +1,6 @@
-/* Estilos de la página de Deslinde. Versión de trabajo de la Fase 2: el diseño
-   final (textos, tipografía, detalles) se cierra al terminar la interfaz. */
+/* Estilos de la página de Deslinde.
+   Pantalla ancha: panel a la izquierda (archivo, resultado, lista, ayuda) y mapa a la derecha.
+   Celular: resumen, mapa, lista y ayuda, uno debajo del otro. */
 
 :root {
   --tinta: #1f2328;
@@ -8,6 +9,7 @@
   --fondo: #f6f5f2;
   --linea: #d9d7d0;
   --acento: #2a5d3c;
+  --acento-oscuro: #1f4a2f;
   --error: #b3202a;
   --advertencia: #e0a100;
   --ok: #2a74b0;
@@ -16,6 +18,10 @@
 
 * {
   box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 html,
@@ -30,47 +36,94 @@ body {
   background: var(--fondo);
 }
 
+a {
+  color: var(--acento);
+}
+
+code {
+  font-size: 12.5px;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--fondo);
+}
+
+:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+/* Solo para lectores de pantalla y teclado: el campo de archivo se usa a través de su botón. */
+.oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 #app {
   display: grid;
   grid-template-rows: auto 1fr;
   height: 100%;
 }
 
+/* ---------- Cabecera ---------- */
+
 .cabecera {
   display: flex;
-  align-items: baseline;
-  gap: 12px;
+  align-items: center;
+  gap: 8px 14px;
   flex-wrap: wrap;
-  padding: 10px 16px;
+  padding: 8px 16px;
   background: var(--acento);
   color: #fff;
 }
 
-.cabecera h1 {
+.identidad {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
   font-size: 20px;
+  letter-spacing: 0.01em;
 }
 
-.cabecera p {
-  margin: 0;
-  opacity: 0.85;
+.logo {
+  width: 28px;
+  height: 28px;
 }
+
+.lema {
+  margin: 0;
+  opacity: 0.9;
+}
+
+.insignia {
+  margin-left: auto;
+  padding: 1px 8px;
+  border: 1px solid rgb(255 255 255 / 0.5);
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+/* ---------- Cuerpo ---------- */
 
 .cuerpo {
   display: grid;
-  grid-template-columns: 360px 1fr;
+  grid-template-columns: minmax(340px, 400px) 1fr;
   min-height: 0;
 }
 
 .panel {
   overflow-y: auto;
-  padding: 16px;
+  padding: 20px;
   background: var(--papel);
   border-right: 1px solid var(--linea);
 }
 
-.panel section:not(.carga),
-.panel .aviso {
+.panel > * + *,
+.abajo > * + * {
   margin-top: 20px;
   padding-top: 16px;
   border-top: 1px solid var(--linea);
@@ -84,30 +137,137 @@ body {
   color: var(--tinta-suave);
 }
 
-.carga label {
-  display: block;
-  font-weight: 600;
-  margin-bottom: 6px;
+.panel h2.titular {
+  font-size: 19px;
+  line-height: 1.3;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--tinta);
 }
 
-.carga input[type='file'] {
-  max-width: 100%;
+.pasos {
+  margin: 0 0 16px;
+  padding-left: 22px;
 }
 
-#estado {
-  min-height: 1.45em;
-  margin: 10px 0 0;
+.pasos li + li {
+  margin-top: 4px;
+}
+
+.nota {
+  margin: 8px 0 0;
+  font-size: 13px;
   color: var(--tinta-suave);
 }
 
-#resumen {
-  margin: 0 0 10px;
+/* ---------- Botones ---------- */
+
+.botones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  border: 1px solid var(--acento);
+  border-radius: 6px;
+  background: var(--papel);
+  color: var(--acento);
+  font: inherit;
   font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.boton:hover {
+  background: color-mix(in srgb, var(--acento) 8%, var(--papel));
+}
+
+.boton.principal {
+  background: var(--acento);
+  color: #fff;
+}
+
+.boton.principal:hover {
+  background: var(--acento-oscuro);
+}
+
+/* El campo real está oculto: su foco se ve en el botón. */
+#archivo:focus-visible ~ .botones .principal {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+/* ---------- Estado y resultado ---------- */
+
+.estado {
+  margin-top: 14px;
+  color: var(--tinta-suave);
+}
+
+.estado p {
+  margin: 0 0 6px;
+}
+
+.estado progress {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--acento);
+}
+
+.estado.error {
+  padding: 10px 12px;
+  border-left: 4px solid var(--error);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--error) 8%, var(--papel));
+  color: var(--tinta);
+}
+
+.estado.error p {
+  margin: 0;
+}
+
+#resultado {
+  margin-top: 16px;
+}
+
+.archivo-actual {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--tinta-suave);
+  overflow-wrap: anywhere;
+}
+
+.veredicto {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 4px solid;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.veredicto.error {
+  border-color: var(--error);
+  background: color-mix(in srgb, var(--error) 9%, var(--papel));
+}
+
+.veredicto.advertencia {
+  border-color: var(--advertencia);
+  background: color-mix(in srgb, var(--advertencia) 14%, var(--papel));
+}
+
+.veredicto.ok {
+  border-color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 10%, var(--papel));
 }
 
 .leyenda {
   list-style: none;
-  margin: 0 0 12px;
+  margin: 14px 0 0;
   padding: 0;
 }
 
@@ -121,6 +281,7 @@ body {
 .leyenda .cuenta {
   margin-left: auto;
   font-variant-numeric: tabular-nums;
+  font-weight: 600;
 }
 
 .muestra {
@@ -146,43 +307,17 @@ body {
   background: color-mix(in srgb, var(--ok) 25%, transparent);
 }
 
-.nota {
-  margin: 6px 0 0;
-  font-size: 13px;
-  color: var(--tinta-suave);
-}
-
 .descargas {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.descargas a {
-  color: var(--acento);
-  font-weight: 600;
-}
-
-.fondo label {
-  display: flex;
+  display: grid;
   gap: 8px;
-  align-items: center;
-  font-weight: 600;
+  margin-top: 14px;
 }
 
-.aviso {
-  font-size: 13px;
-  color: var(--tinta-suave);
-}
+/* ---------- Lista de hallazgos ---------- */
 
-.mapa {
-  position: relative;
-  min-height: 0;
-}
-
-/* Lista de hallazgos */
 .filtros {
   display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin-bottom: 8px;
 }
@@ -190,19 +325,20 @@ body {
 .filtros label {
   display: grid;
   gap: 2px;
+  min-width: 0;
   font-size: 13px;
   color: var(--tinta-suave);
 }
 
 .filtros select {
-  font: inherit;
-  font-size: 14px;
-  color: var(--tinta);
-  padding: 4px 6px;
+  width: 100%;
+  padding: 5px 6px;
   border: 1px solid var(--linea);
   border-radius: 4px;
   background: var(--papel);
-  max-width: 100%;
+  color: var(--tinta);
+  font: inherit;
+  font-size: 14px;
 }
 
 .hallazgos {
@@ -234,7 +370,6 @@ button.hallazgo:hover {
 }
 
 button.hallazgo:focus-visible {
-  outline: 2px solid var(--acento);
   outline-offset: -2px;
 }
 
@@ -261,7 +396,8 @@ button.hallazgo:focus-visible {
   color: var(--tinta-suave);
 }
 
-.marca {
+.marca.error,
+.marca.advertencia {
   flex: none;
   width: 10px;
   height: 10px;
@@ -277,14 +413,113 @@ button.hallazgo:focus-visible {
 }
 
 .mas {
-  margin-top: 8px;
+  margin: 8px 0;
   padding: 6px 10px;
-  font: inherit;
-  color: var(--acento);
-  background: var(--papel);
   border: 1px solid var(--acento);
   border-radius: 4px;
+  background: var(--papel);
+  color: var(--acento);
+  font: inherit;
   cursor: pointer;
+}
+
+/* ---------- Ayuda, privacidad y aviso ---------- */
+
+.ayuda summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--acento);
+}
+
+.ayuda[open] summary {
+  margin-bottom: 8px;
+}
+
+.ayuda p,
+.ayuda ul {
+  margin: 6px 0;
+  font-size: 14px;
+}
+
+.ayuda ul {
+  padding-left: 20px;
+}
+
+.reglas {
+  margin: 0;
+  font-size: 14px;
+}
+
+.reglas dt {
+  margin-top: 8px;
+  font-weight: 600;
+}
+
+.reglas dd {
+  margin: 2px 0 0;
+  color: var(--tinta-suave);
+}
+
+.reglas .regla {
+  display: inline-block;
+  min-width: 2.2em;
+  color: var(--acento);
+}
+
+.reglas .severidad {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--tinta-suave);
+}
+
+.interruptor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.aviso-error {
+  color: var(--error);
+}
+
+.aviso {
+  margin-bottom: 0;
+  font-size: 13px;
+  color: var(--tinta-suave);
+}
+
+/* ---------- Mapa ---------- */
+
+.mapa-envoltura {
+  position: relative;
+  min-height: 0;
+}
+
+/* Con dos clases, para ganarle a `.maplibregl-map { position: relative }` de la
+   CSS de MapLibre, que se carga después: si no, el mapa queda con 0 px de alto. */
+.mapa-envoltura .mapa {
+  position: absolute;
+  inset: 0;
+}
+
+.mapa-vacio {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: min(320px, 80%);
+  padding: 14px 18px;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.92);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.12);
+  text-align: center;
+  pointer-events: none;
+}
+
+.mapa-vacio p {
+  margin: 0;
+  color: var(--tinta-suave);
 }
 
 /* Ficha de una parcela en el mapa */
@@ -321,6 +556,29 @@ button.hallazgo:focus-visible {
   background: var(--ok);
 }
 
+/* Aviso mientras se arrastra un archivo sobre la página */
+.soltar {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  background: rgb(42 93 60 / 0.88);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.soltar p {
+  margin: 0;
+  padding: 40px 56px;
+  border: 3px dashed rgb(255 255 255 / 0.8);
+  border-radius: 16px;
+}
+
+/* ---------- Celular ---------- */
+
 @media (max-width: 800px) {
   #app {
     height: auto;
@@ -330,12 +588,51 @@ button.hallazgo:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  /* El panel se abre para que el mapa quede entre el resultado y la lista. */
   .panel {
-    border-right: 0;
-    border-bottom: 1px solid var(--linea);
+    display: contents;
   }
 
-  .mapa {
-    height: 65vh;
+  .arriba,
+  .lista,
+  .abajo {
+    padding: 16px;
+    background: var(--papel);
+  }
+
+  .arriba {
+    order: 1;
+  }
+
+  .mapa-envoltura {
+    order: 2;
+    height: 60vh;
+    border-block: 1px solid var(--linea);
+  }
+
+  .lista {
+    order: 3;
+  }
+
+  .abajo {
+    order: 4;
+    border-top: 1px solid var(--linea);
+  }
+
+  .panel > * + * {
+    margin-top: 0;
+    padding-top: 16px;
+    border-top: 0;
+  }
+
+  .lista + .abajo {
+    border-top: 1px solid var(--linea);
+  }
+
+  /* Cabecera en dos líneas: nombre e insignia arriba, lema debajo. */
+  .lema {
+    order: 3;
+    flex-basis: 100%;
+    font-size: 14px;
   }
 }

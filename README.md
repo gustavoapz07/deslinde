@@ -16,7 +16,7 @@ La investigación, las decisiones y el plan están en la bóveda de Obsidian `Ag
 |------|--------|
 | 0. Preparar: stack, datos sintéticos, pruebas escritas | Hecha el 28-09-2026 |
 | 1. Motor de validación (R1 a R12) y salidas | Hecha el 28-09-2026: 36 pruebas pasan; 10,000 parcelas en unos 0.5 s |
-| 2. Interfaz: carga, mapa, lista de errores | En curso: Web Worker, carga, descargas, mapa por severidad y lista de hallazgos enlazada al mapa (80 pruebas pasan). Falta el diseño final |
+| 2. Interfaz: carga, mapa, lista de errores | Hecha el 28-09-2026: Web Worker, mapa por severidad, lista enlazada al mapa, ejemplo para probar, veredicto en lenguaje simple y ayuda (80 pruebas pasan) |
 | 3. Auditoría y publicación | Pendiente |
 
 ## Cómo correrlo
@@ -97,6 +97,21 @@ Medido el 28-09-2026 en el navegador, con el build de producción y el archivo d
 |---|---|---|
 | Con Web Worker | 0.49 a 0.56 s | Ninguna tarea larga; la página responde igual que en reposo (unos 20 ms) |
 | Sin Web Worker (el mismo motor en la página) | 0.53 a 0.62 s | La página queda congelada toda la revisión (527 a 622 ms) |
+
+## La página
+
+Pensada para técnicos de cooperativas y encargados de cumplimiento, en español simple:
+
+- **Primera vista**: qué hace Deslinde en tres pasos, el botón para elegir un archivo y **"Probar con un ejemplo"**,
+  que carga `datos/sinteticos/errores-mezclados.geojson` (24 parcelas inventadas, un caso por regla).
+  Quien visita el portafolio no tiene un archivo de parcelas a mano.
+- **Arrastrar y soltar** el archivo en cualquier parte de la página. Un formato que no es GeoJSON ni CSV recibe un mensaje claro.
+- **Avance** con barra mientras el worker revisa.
+- **Veredicto** en una frase, contando parcelas (lo que hay que ir a corregir): "7 parcelas tienen errores. Corríjalas antes de enviar el archivo."
+  Debajo, qué se revisó y qué no: 12 reglas de geolocalización, no deforestación.
+- **Ayuda plegable**: qué revisa cada regla y qué formato acepta, con el archivo de ejemplo para descargar.
+- **Privacidad**: la casilla del mapa base con lo que recibe OpenFreeMap, y el aviso de herramienta de apoyo.
+- **Celular**: resultado, mapa, lista y ayuda, uno debajo del otro, para que el mapa se vea apenas termina la revisión.
 
 ## Mapa
 
