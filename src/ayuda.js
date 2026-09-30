@@ -13,8 +13,8 @@ const REGLAS = [
   ['R7', 'Error', 'El borde no debe repetir un vértice. El GeoJSON corregido quita los repetidos seguidos.'],
   ['R8', 'Error', 'Un multipolígono no debe juntar partes que no se tocan.'],
   ['R9', 'Error o advertencia', 'Una parcela de más de 4 ha debe venir como polígono, no como punto. Un punto sin área declarada se marca como advertencia.'],
-  ['R10', 'Advertencia', 'Dos parcelas no deben solaparse.'],
-  ['R11', 'Advertencia', 'La misma parcela no debe venir dos veces.'],
+  ['R10', 'Advertencia', 'Dos parcelas no deben solaparse. El aviso aparece en las dos.'],
+  ['R11', 'Advertencia', 'La misma parcela no debe venir dos veces. El aviso aparece en cada copia.'],
   ['R12', 'Advertencia', 'El área declarada no debe diferir en más de 10 % del área que se calcula con el borde.'],
 ]
 

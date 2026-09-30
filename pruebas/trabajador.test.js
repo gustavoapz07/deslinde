@@ -33,12 +33,11 @@ describe('trabajo del worker', () => {
       if (r.severidad === 'error') expect(severidadDe(r.parcela)).toBe('error')
       else expect(['error', 'advertencia']).toContain(severidadDe(r.parcela))
     }
-    // Las 10 válidas y la primera de cada par solapado o duplicado (R10 y R11
-    // marcan solo la segunda).
+    // Solo las 10 válidas: R10 y R11 marcan las dos parcelas de cada par.
     const conHallazgos = new Set(informe.resultados.map((r) => r.parcela))
     const sanas = mapa.features.filter((f) => !conHallazgos.has(f.properties.id)).map((f) => f.properties)
     const validas = Array.from({ length: 10 }, (_, i) => `P-${String(i + 1).padStart(5, '0')}`)
-    expect(sanas.map((p) => p.id)).toEqual([...validas, 'P-E07A', 'P-E13A'])
+    expect(sanas.map((p) => p.id)).toEqual(validas)
     expect(sanas.every((p) => p.severidad === 'ok')).toBe(true)
   })
 
@@ -96,7 +95,7 @@ describe('trabajo del worker', () => {
     const { conteo, informe } = procesar(archivo('errores-mezclados.geojson'))
     expect(conteo.error + conteo.advertencia + conteo.ok).toBe(informe.parcelas)
     expect(conteo.error).toBe(informe.resumen.parcelasConErrores)
-    expect(conteo.ok).toBe(12)
+    expect(conteo.ok).toBe(10) // las válidas; R10 y R11 marcan las dos parcelas del par
     expect(conteo.sinDibujar).toBe(1) // la de R1
   })
 

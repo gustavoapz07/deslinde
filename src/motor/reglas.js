@@ -317,27 +317,42 @@ function claveGeometria(p) {
   return `${p.tipo}:${redondeada}`
 }
 
+// "la parcela P-2" o "las parcelas P-2, P-3 y 4 más".
+function nombrar(parcelas) {
+  const MAXIMO = 3
+  if (parcelas.length === 1) return `la parcela ${parcelas[0].etiqueta}`
+  const nombres = parcelas.slice(0, MAXIMO).map((p) => p.etiqueta)
+  const resto = parcelas.length - nombres.length
+  const ultimo = resto > 0 ? `${resto} más` : nombres.pop()
+  return `las parcelas ${nombres.join(', ')} y ${ultimo}`
+}
+
+// Cada copia recibe un aviso que nombra a las demás: cuál se queda lo decide
+// una persona. `duplicadas` guarda todos los pares, para que R10 no los repita.
 export function reglaR11(parcelas) {
-  const primeras = new Map()
-  const hallazgos = []
-  const duplicadas = new Set()
+  const grupos = new Map()
   for (const p of parcelas) {
     const clave = claveGeometria(p)
-    const original = primeras.get(clave)
-    if (!original) {
-      primeras.set(clave, p)
-      continue
+    if (!grupos.has(clave)) grupos.set(clave, [])
+    grupos.get(clave).push(p)
+  }
+  const hallazgos = []
+  const duplicadas = new Set()
+  for (const grupo of grupos.values()) {
+    if (grupo.length < 2) continue
+    for (const p of grupo) {
+      const otras = grupo.filter((q) => q !== p)
+      for (const q of otras) if (p.indice < q.indice) duplicadas.add(`${p.indice}|${q.indice}`)
+      hallazgos.push({
+        parcela: p,
+        ...advertencia(
+          'R11',
+          ubicar(p.tipo === 'Point' ? p.coords : centroid(geometria(p)).geometry.coordinates),
+          `Tiene la misma geometría que ${nombrar(otras)}.`,
+          'Si es la misma parcela, deje un solo registro; si no, corrija la geometría.',
+        ),
+      })
     }
-    duplicadas.add(`${original.indice}|${p.indice}`)
-    hallazgos.push({
-      parcela: p,
-      ...advertencia(
-        'R11',
-        ubicar(p.tipo === 'Point' ? p.coords : centroid(geometria(p)).geometry.coordinates),
-        `Tiene la misma geometría que la parcela ${original.etiqueta}.`,
-        'Si es la misma parcela, deje un solo registro; si no, corrija la geometría.',
-      ),
-    })
   }
   return { hallazgos, duplicadas }
 }
@@ -376,15 +391,21 @@ export function reglaR10(parcelas, duplicadas, solapeMinimoM2) {
         }
         const m2 = solape ? area(solape) : 0
         if (m2 <= solapeMinimoM2) continue
-        hallazgos.push({
-          parcela: b.p,
-          ...advertencia(
-            'R10',
-            ubicar(centroid(solape).geometry.coordinates),
-            `Se solapa con la parcela ${a.p.etiqueta} en unos ${fmt(Math.round(m2))} m².`,
-            'Revise los bordes de ambas parcelas; si son la misma finca, deje una sola.',
-          ),
-        })
+        // Un aviso en cada parcela del par, en el mismo punto. `otra` ordena los
+        // avisos de una parcela con varias vecinas; no sale en el informe.
+        const donde = ubicar(centroid(solape).geometry.coordinates)
+        for (const [esta, otra] of [[a.p, b.p], [b.p, a.p]]) {
+          hallazgos.push({
+            parcela: esta,
+            otra: otra.indice,
+            ...advertencia(
+              'R10',
+              donde,
+              `Se solapa con la parcela ${otra.etiqueta} en unos ${fmt(Math.round(m2))} m².`,
+              'Revise los bordes de ambas parcelas; si son la misma finca, deje una sola.',
+            ),
+          })
+        }
       }
     }
   }

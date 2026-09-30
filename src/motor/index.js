@@ -107,7 +107,10 @@ export function analizar(texto, opciones = {}) {
   encontrados.push(...r11.hallazgos, ...reglaR10(comparables, r11.duplicadas, o.solapeMinimoM2))
 
   const numeroDeRegla = (r) => Number(r.regla.slice(1))
-  encontrados.sort((a, b) => a.parcela.indice - b.parcela.indice || numeroDeRegla(a) - numeroDeRegla(b))
+  encontrados.sort(
+    (a, b) =>
+      a.parcela.indice - b.parcela.indice || numeroDeRegla(a) - numeroDeRegla(b) || (a.otra ?? 0) - (b.otra ?? 0),
+  )
 
   const resultados = encontrados.map(({ parcela, regla, severidad, ubicacion, mensaje, accion }) => ({
     parcela: parcela.etiqueta,

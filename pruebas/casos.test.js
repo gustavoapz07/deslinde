@@ -52,10 +52,11 @@ describe('casos de v0, uno por regla', () => {
 
   it('07 · R10: dos parcelas solapadas → advertencia', () => {
     const informe = validarArchivo('casos/07-parcelas-solapadas.geojson')
-    const r = informe.resultados.find((x) => x.regla === 'R10')
-    expect(r, 'debería marcar R10').toBeDefined()
-    expect(['P-E07A', 'P-E07B']).toContain(r.parcela)
-    expect(r.severidad).toBe('advertencia')
+    // Las dos parcelas del par: cada una nombra a la otra.
+    esperarRegla(informe, 'P-E07A', 'R10', 'advertencia')
+    esperarRegla(informe, 'P-E07B', 'R10', 'advertencia')
+    expect(de(informe, 'P-E07A')[0].mensaje).toMatch(/P-E07B/)
+    expect(de(informe, 'P-E07B')[0].mensaje).toMatch(/P-E07A/)
   })
 
   it('08 · R4: parcela fuera de Honduras → advertencia', () => {
@@ -92,10 +93,10 @@ describe('casos de v0, uno por regla', () => {
 
   it('13 · R11: dos parcelas con la misma geometría → advertencia', () => {
     const informe = validarArchivo('casos/13-geometria-duplicada.geojson')
-    const r = informe.resultados.find((x) => x.regla === 'R11')
-    expect(r, 'debería marcar R11').toBeDefined()
-    expect(['P-E13A', 'P-E13B']).toContain(r.parcela)
-    expect(r.severidad).toBe('advertencia')
+    esperarRegla(informe, 'P-E13A', 'R11', 'advertencia')
+    esperarRegla(informe, 'P-E13B', 'R11', 'advertencia')
+    expect(de(informe, 'P-E13A')[0].mensaje).toMatch(/P-E13B/)
+    expect(de(informe, 'P-E13B')[0].mensaje).toMatch(/P-E13A/)
   })
 
   it('14 · R12: área declarada muy distinta de la calculada → advertencia', () => {
@@ -123,9 +124,9 @@ describe('archivo con errores mezclados', () => {
     for (const [parcela, regla] of Object.entries(esperados)) {
       expect(de(informe, parcela).map((r) => r.regla), parcela).toContain(regla)
     }
-    const reglasDe = (ids) => informe.resultados.filter((r) => ids.includes(r.parcela)).map((r) => r.regla)
-    expect(reglasDe(['P-E07A', 'P-E07B'])).toContain('R10')
-    expect(reglasDe(['P-E13A', 'P-E13B'])).toContain('R11')
+    // R10 y R11 marcan las dos parcelas del par.
+    for (const parcela of ['P-E07A', 'P-E07B']) expect(de(informe, parcela).map((r) => r.regla), parcela).toContain('R10')
+    for (const parcela of ['P-E13A', 'P-E13B']) expect(de(informe, parcela).map((r) => r.regla), parcela).toContain('R11')
     const validas = informe.resultados.filter((r) => /^P-\d{5}$/.test(r.parcela))
     expect(validas).toEqual([])
   })

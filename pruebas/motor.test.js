@@ -102,6 +102,40 @@ describe('reglas: bordes', () => {
     const informe = validarTexto(coleccion(parcela('P-1', poligono(A, B, C, D, A)), parcela('P-2', poligono(B, E, F, C, B))))
     expect(informe.resultados).toEqual([])
   })
+
+  it('R10 · una parcela solapada con dos vecinas lleva un aviso por vecina, en el orden del archivo', () => {
+    // P-2 cruza a P-1 por la izquierda y a P-3 por la derecha; P-1 y P-3 no se tocan.
+    const G = '-87.998500,14.500000'
+    const H = '-87.998500,14.500900'
+    const I = '-87.999400,14.500000'
+    const J = '-87.999400,14.500900'
+    const K = '-87.997600,14.500000'
+    const L = '-87.997600,14.500900'
+    const informe = validarTexto(
+      coleccion(
+        parcela('P-1', poligono(A, B, C, D, A)),
+        parcela('P-2', poligono(I, G, H, J, I)),
+        parcela('P-3', poligono('-87.998800,14.500000', K, L, '-87.998800,14.500900', '-87.998800,14.500000')),
+      ),
+    )
+    const r10 = informe.resultados.filter((r) => r.regla === 'R10')
+    expect(r10.map((r) => r.parcela)).toEqual(['P-1', 'P-2', 'P-2', 'P-3'])
+    expect(r10.map((r) => r.mensaje.match(/parcela (P-\d)/)[1])).toEqual(['P-2', 'P-1', 'P-3', 'P-2'])
+    // Las dos caras de un mismo solape señalan el mismo lugar.
+    expect(r10[0].ubicacion).toEqual(r10[1].ubicacion)
+  })
+
+  it('R11 · tres copias de la misma parcela: un aviso para cada una, que nombra a las otras', () => {
+    const cuadrado = poligono(A, B, C, D, A)
+    const informe = validarTexto(coleccion(parcela('P-1', cuadrado), parcela('P-2', cuadrado), parcela('P-3', cuadrado)))
+    expect(informe.resultados.map((r) => [r.parcela, r.regla])).toEqual([
+      ['P-1', 'R11'],
+      ['P-2', 'R11'],
+      ['P-3', 'R11'],
+    ])
+    expect(informe.resultados[0].mensaje).toMatch(/parcelas P-2 y P-3/)
+    expect(informe.resultados[2].mensaje).toMatch(/parcelas P-1 y P-2/)
+  })
 })
 
 describe('salidas', () => {

@@ -17,7 +17,7 @@ La investigación, las decisiones y el plan están en la bóveda de Obsidian `Ag
 | 0. Preparar: stack, datos sintéticos, pruebas escritas | Hecha el 28-09-2026 |
 | 1. Motor de validación (R1 a R12) y salidas | Hecha el 28-09-2026: 36 pruebas pasan; 10,000 parcelas en unos 0.5 s |
 | 2. Interfaz: carga, mapa, lista de errores | Hecha el 28-09-2026: Web Worker, mapa por severidad, lista enlazada al mapa, ejemplo para probar, veredicto en lenguaje simple y ayuda (80 pruebas pasan) |
-| 3. Auditoría y publicación | Pendiente |
+| 3. Auditoría y publicación | En curso: R10 y R11 marcan las dos parcelas del par (82 pruebas pasan) |
 
 ## Cómo correrlo
 
@@ -164,8 +164,8 @@ La parte sin DOM (filtros, conteo por regla, tramo) está en `src/lista/datos.js
 | R7 | Sin vértices repetidos | Error |
 | R8 | Un multipolígono no junta partes separadas | Error |
 | R9 | Más de 4 ha como polígono, no como punto; punto sin área declarada | Error / advertencia |
-| R10 | Solapes entre parcelas | Advertencia |
-| R11 | Geometrías duplicadas | Advertencia |
+| R10 | Solapes entre parcelas de más de 10 m². El aviso va en las dos parcelas y cada una nombra a la otra | Advertencia |
+| R11 | Geometrías duplicadas. Cada copia lleva un aviso que nombra a las demás | Advertencia |
 | R12 | Área declarada contra área calculada | Advertencia |
 
 ## Datos sintéticos
