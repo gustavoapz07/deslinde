@@ -18,11 +18,13 @@ const REGLAS = [
   ['R12', 'Advertencia', 'El área declarada no debe diferir en más de 10 % del área que se calcula con el borde.'],
 ]
 
+const CLASE = { Error: 'error', Advertencia: 'advertencia' }
+
 export const AYUDA_REGLAS = `
   <dl class="reglas">
     ${REGLAS.map(
       ([regla, severidad, texto]) => `
-        <dt><span class="regla">${regla}</span> ${NOMBRES_DE_REGLA[regla]} <span class="severidad">${severidad}</span></dt>
+        <dt><span class="regla">${regla}</span> ${NOMBRES_DE_REGLA[regla]} <span class="severidad ${CLASE[severidad] ?? ''}">${severidad}</span></dt>
         <dd>${texto}</dd>`,
     ).join('')}
   </dl>

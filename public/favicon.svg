@@ -1,12 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- Contorno de una parcela con sus vértices marcados: deslindar es fijar los límites de una finca. -->
-  <rect width="32" height="32" rx="7" fill="#2a5d3c"/>
-  <path d="M7 11 L19 6 L26 15 L21 26 L9 23 Z" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linejoin="round"/>
-  <g fill="#e0a100" stroke="#2a5d3c" stroke-width="1">
-    <circle cx="7" cy="11" r="2.6"/>
-    <circle cx="19" cy="6" r="2.6"/>
-    <circle cx="26" cy="15" r="2.6"/>
-    <circle cx="21" cy="26" r="2.6"/>
-    <circle cx="9" cy="23" r="2.6"/>
+  <!-- Un grano de café oro dentro de las marcas de esquina de un encuadre: Deslinde revisa los límites de cada parcela. -->
+  <rect width="32" height="32" rx="7" fill="#0e3526"/>
+  <g fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.8">
+    <path d="M5 10V5h5"/><path d="M22 5h5v5"/><path d="M27 22v5h-5"/><path d="M10 27H5v-5"/>
+  </g>
+  <g transform="rotate(35 16 16)">
+    <ellipse cx="16" cy="16" rx="6.2" ry="9" fill="#d9a21b"/>
+    <path d="M16 8.3C13.1 12.1 18.9 19.9 16 23.7" fill="none" stroke="#0e3526" stroke-width="1.9" stroke-linecap="round"/>
   </g>
 </svg>

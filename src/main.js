@@ -5,6 +5,7 @@
 import './estilos.css'
 import ejemploUrl from '../datos/sinteticos/errores-mezclados.geojson?url'
 import { AYUDA_FORMATO, AYUDA_REGLAS } from './ayuda.js'
+import { ICONOS } from './iconos.js'
 import { unirIndices } from './lista/datos.js'
 import { crearLista } from './lista/index.js'
 import { COLORES, NOMBRES } from './mapa/capas.js'
@@ -12,92 +13,155 @@ import { Cancelado, crearValidador } from './validador.js'
 
 const REPOSITORIO = 'https://github.com/gustavoapz07/deslinde'
 const FORMATOS = /\.(geojson|json|csv)$/i
+const SEVERIDADES = ['error', 'advertencia', 'ok']
 
-// El mismo dibujo que el ícono de la pestaña (public/favicon.svg).
+// El mismo dibujo que el ícono de la pestaña (public/favicon.svg): un grano de
+// café oro (así se llama el café verde de exportación) dentro de las marcas de
+// esquina de un encuadre, porque Deslinde revisa los límites de cada parcela.
 const LOGO = `
-  <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
-    <path d="M7 11 L19 6 L26 15 L21 26 L9 23 Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
-    <g fill="#e0a100"><circle cx="7" cy="11" r="2.6"/><circle cx="19" cy="6" r="2.6"/><circle cx="26" cy="15" r="2.6"/><circle cx="21" cy="26" r="2.6"/><circle cx="9" cy="23" r="2.6"/></g>
+  <svg class="logo" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+    <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.8">
+      <path d="M3.5 9.5v-6h6"/><path d="M22.5 3.5h6v6"/><path d="M28.5 22.5v6h-6"/><path d="M9.5 28.5h-6v-6"/>
+    </g>
+    <g transform="rotate(35 16 16)">
+      <ellipse cx="16" cy="16" rx="6.6" ry="9.6" fill="#d9a21b"/>
+      <path d="M16 7.7C12.9 11.7 19.1 20.3 16 24.3" fill="none" stroke="#0e3526" stroke-width="1.9" stroke-linecap="round"/>
+    </g>
   </svg>`
+
+const muestra = (s) => `<span class="muestra ${s}" aria-hidden="true"></span>`
 
 document.querySelector('#app').innerHTML = `
   <header class="cabecera">
     <h1 class="identidad">${LOGO}<span>Deslinde</span></h1>
     <p class="lema">Validador de parcelas de café para el EUDR</p>
-    <span class="insignia" title="Prototipo de portafolio. Los ejemplos usan parcelas inventadas.">Prototipo v0</span>
+    <div class="cabecera-fin">
+      <a class="enlace-cabecera" href="${REPOSITORIO}" target="_blank" rel="noopener">${ICONOS.codigo}<span>Código abierto</span></a>
+    </div>
   </header>
   <main class="cuerpo">
     <div class="panel">
       <section class="arriba" aria-label="Archivo y resultado">
-        <div id="bienvenida">
+        <div id="bienvenida" class="bienvenida">
           <h2 class="titular">Revise su archivo de parcelas antes de enviarlo</h2>
-          <ol class="pasos">
-            <li><strong>Cargue</strong> un GeoJSON o un CSV de puntos.</li>
-            <li><strong>Vea en el mapa</strong> qué parcelas tienen errores y por qué.</li>
-            <li><strong>Descargue</strong> el informe y el archivo con las correcciones seguras.</li>
-          </ol>
+          <p class="bajada">Deslinde encuentra los errores de geolocalización que pide el EUDR y le muestra en el mapa dónde está cada uno.</p>
         </div>
         <div class="carga">
           <input id="archivo" class="oculto" type="file" accept=".geojson,.json,.csv" />
-          <div class="botones">
-            <label for="archivo" class="boton principal" id="elegir">Elegir archivo</label>
-            <button type="button" class="boton" id="ejemplo">Probar con un ejemplo</button>
+          <div class="archivo-actual" id="archivo-actual" hidden>
+            <span class="archivo-icono">${ICONOS.archivo}</span>
+            <span class="archivo-datos"><strong id="archivo-nombre"></strong><span id="archivo-meta"></span></span>
           </div>
-          <p class="nota">También puede arrastrar el archivo a la página. Se revisa en este equipo: no se sube a ningún servidor.</p>
+          <div class="zona">
+            <span class="zona-icono">${ICONOS.subir}</span>
+            <p class="zona-titulo"><span class="con-mouse">Arrastre aquí su archivo</span><span class="tactil">Elija su archivo de parcelas</span></p>
+            <p class="zona-detalle">GeoJSON o CSV de puntos, con las coordenadas en grados</p>
+            <div class="botones">
+              <label for="archivo" class="boton principal" id="elegir">Elegir archivo</label>
+              <button type="button" class="boton" id="ejemplo">Probar con un ejemplo</button>
+            </div>
+          </div>
+          <p class="confianza">${ICONOS.escudo}<span>Se revisa en este equipo: el archivo no se sube a ningún servidor.</span></p>
         </div>
         <div id="estado" class="estado" hidden>
           <p id="estado-texto"></p>
           <progress id="avance" aria-labelledby="estado-texto"></progress>
         </div>
         <p id="anuncio" class="oculto" role="status" aria-live="polite"></p>
-        <div id="resultado" hidden>
+        <div id="resultado" class="resultado" hidden>
           <h2 class="oculto">Resultado</h2>
-          <p class="archivo-actual" id="archivo-actual"></p>
-          <p id="veredicto" class="veredicto"></p>
-          <p class="nota" id="alcance"></p>
-          <ul class="leyenda">
-            ${['error', 'advertencia', 'ok']
-              .map((s) => `<li><span class="muestra ${s}"></span>${NOMBRES[s]}<span class="cuenta" id="cuenta-${s}"></span></li>`)
-              .join('')}
-          </ul>
-          <p class="nota" id="sin-dibujar" hidden></p>
-          <div class="descargas">
-            <a id="bajar-informe" class="boton">Descargar el informe (CSV)</a>
-            <a id="bajar-corregido" class="boton">Descargar el GeoJSON corregido</a>
+          <div id="veredicto" class="veredicto">
+            <span class="veredicto-icono" id="veredicto-icono"></span>
+            <div>
+              <p class="veredicto-texto" id="veredicto-texto"></p>
+              <p class="veredicto-alcance" id="alcance"></p>
+            </div>
           </div>
-          <p class="nota">El GeoJSON corregido solo trae las correcciones seguras: pares invertidos, bordes cerrados y vértices repetidos quitados. Lo demás hay que corregirlo en el archivo de origen.</p>
+          <div class="parcelas">
+            <div class="proporcion" aria-hidden="true">
+              ${SEVERIDADES.map((s) => `<span class="tramo ${s}" id="tramo-${s}"></span>`).join('')}
+            </div>
+            <ul class="cifras">
+              ${SEVERIDADES.map(
+                (s) => `
+                <li class="cifra">
+                  <span class="cifra-numero" id="cuenta-${s}"></span>
+                  <span class="cifra-nombre">${muestra(s)}${NOMBRES[s]}</span>
+                </li>`,
+              ).join('')}
+            </ul>
+            <p class="nota" id="sin-dibujar" hidden></p>
+          </div>
+          <div class="descargas">
+            <a id="bajar-informe" class="descarga">${ICONOS.descargar}<span><strong>Informe de hallazgos (CSV)</strong><small>Una fila por hallazgo; se abre en Excel</small></span></a>
+            <a id="bajar-corregido" class="descarga">${ICONOS.descargar}<span><strong>Archivo corregido (GeoJSON)</strong><small>Con las correcciones seguras aplicadas</small></span></a>
+          </div>
+          <p class="nota">El GeoJSON corregido invierte los pares al revés, cierra los bordes y quita los vértices repetidos. Lo demás hay que corregirlo en el archivo de origen.</p>
+        </div>
+        <div class="como">
+          <h3>Cómo funciona</h3>
+          <ol class="pasos">
+            <li><span><strong>Cargue</strong> un GeoJSON o un CSV de puntos con sus parcelas.</span></li>
+            <li><span><strong>Vea en el mapa</strong> qué parcelas tienen errores y por qué.</span></li>
+            <li><span><strong>Descargue</strong> el informe y el archivo con las correcciones seguras.</span></li>
+          </ol>
         </div>
       </section>
       <section id="lista" class="lista" hidden></section>
       <section class="abajo" aria-label="Ayuda y privacidad">
-        <details class="ayuda">
-          <summary>¿Qué revisa Deslinde?</summary>
-          ${AYUDA_REGLAS}
-        </details>
-        <details class="ayuda">
-          <summary>¿Qué formato acepta?</summary>
-          ${AYUDA_FORMATO}
-          <p><a href="${ejemploUrl}" download="ejemplo-deslinde.geojson">Descargar el archivo de ejemplo</a> (24 parcelas inventadas, con un caso de cada regla).</p>
-        </details>
-        <div class="privacidad">
-          <h2>Privacidad</h2>
-          <label class="interruptor"><input id="fondo" type="checkbox" /> Mostrar mapa base</label>
-          <p class="nota">El archivo no sale de este equipo. Con el mapa base, OpenFreeMap recibe qué zona del mapa se está mirando. Apáguelo si trabaja con parcelas reales y no quiere que nadie sepa dónde están.</p>
-          <p class="nota aviso-error" id="fondo-error" hidden>No se pudo cargar el mapa base (¿sin internet?). Las parcelas se ven igual sobre fondo liso.</p>
+        <div class="acordeon">
+          <details class="ayuda">
+            <summary>¿Qué revisa Deslinde?${ICONOS.flecha}</summary>
+            <div class="ayuda-cuerpo">${AYUDA_REGLAS}</div>
+          </details>
+          <details class="ayuda">
+            <summary>¿Qué formato acepta?${ICONOS.flecha}</summary>
+            <div class="ayuda-cuerpo">
+              ${AYUDA_FORMATO}
+              <p><a href="${ejemploUrl}" download="ejemplo-deslinde.geojson">Descargar el archivo de ejemplo</a> (24 parcelas inventadas, con un caso de cada regla).</p>
+            </div>
+          </details>
+          <details class="ayuda" id="privacidad">
+            <summary>Privacidad y mapa base${ICONOS.flecha}</summary>
+            <div class="ayuda-cuerpo">
+              <p>El archivo se lee y se revisa en este equipo. Deslinde no tiene un servidor que lo reciba, y el navegador tiene prohibido enviarlo a otro sitio.</p>
+              <p>Con el mapa base encendido, OpenFreeMap recibe qué zona del mapa se está mirando, no el archivo. Si trabaja con parcelas reales y no quiere que se sepa dónde están, apague el interruptor «Mapa base» del mapa: las parcelas se ven igual sobre fondo liso.</p>
+            </div>
+          </details>
         </div>
         <p class="aviso">
           Herramienta de apoyo para preparar datos: no certifica el cumplimiento del EUDR ni revisa deforestación.
           La responsabilidad sigue siendo del operador.
+        </p>
+        <p class="aviso">
+          Prototipo de portafolio: el ejemplo usa parcelas inventadas.
           <a href="${REPOSITORIO}" target="_blank" rel="noopener">Código abierto (MIT)</a>
         </p>
       </section>
     </div>
     <div class="mapa-envoltura">
       <div id="mapa" class="mapa" role="region" aria-label="Mapa de las parcelas"></div>
-      <div id="mapa-vacio" class="mapa-vacio"><p id="mapa-vacio-texto">Aquí verá sus parcelas, coloreadas según lo que encuentre la revisión.</p></div>
+      <div class="control-fondo">
+        <label class="interruptor">
+          <input id="fondo" type="checkbox" role="switch" />
+          <span class="interruptor-pista" aria-hidden="true"></span>
+          <span>Mapa base</span>
+        </label>
+        <a href="#privacidad" class="control-ayuda" id="ver-privacidad">Qué ve OpenFreeMap</a>
+        <p class="aviso-error" id="fondo-error" hidden>No se pudo cargar el mapa base (¿sin internet?). Las parcelas se ven igual sobre fondo liso.</p>
+      </div>
+      <div id="mapa-vacio" class="mapa-vacio">
+        <div class="vacio-tarjeta">
+          <p class="vacio-titulo" id="mapa-vacio-titulo">Aquí verá sus parcelas</p>
+          <p id="mapa-vacio-texto">Cada una con el color de lo que encuentre la revisión:</p>
+          <ul class="vacio-leyenda" id="mapa-vacio-leyenda">
+            ${SEVERIDADES.map((s) => `<li>${muestra(s)}${NOMBRES[s]}</li>`).join('')}
+          </ul>
+        </div>
+      </div>
     </div>
   </main>
-  <div id="soltar" class="soltar" hidden><p>Suelte el archivo para revisarlo</p></div>
+  <div id="soltar" class="soltar" hidden><p>${ICONOS.subir}<span>Suelte el archivo para revisarlo</span></p></div>
 `
 
 const $ = (selector) => document.querySelector(selector)
@@ -139,8 +203,10 @@ const mapaListo = import('./mapa/index.js').then(({ crearMapa }) => crearMapa($(
 let sinMapa = false
 mapaListo.catch(() => {
   sinMapa = true
+  $('#mapa-vacio-titulo').textContent = 'No se pudo cargar el mapa'
   $('#mapa-vacio-texto').textContent =
-    'No se pudo cargar el mapa (¿se cortó la conexión?). La lista y las descargas funcionan igual. Vuelva a cargar la página para ver el mapa.'
+    '¿Se cortó la conexión? La lista y las descargas funcionan igual. Vuelva a cargar la página para ver el mapa.'
+  $('#mapa-vacio-leyenda').hidden = true
   $('#mapa-vacio').hidden = false
 })
 // Mientras MapLibre no llega, las órdenes esperan. De mostrar y limpiar solo vale
@@ -175,6 +241,9 @@ let urls = []
 
 // Leyenda: los colores salen de los mismos valores que usa el mapa.
 for (const [severidad, color] of Object.entries(COLORES)) document.documentElement.style.setProperty(`--${severidad}`, color)
+
+// El enlace del control del mapa abre la explicación de privacidad en el panel.
+$('#ver-privacidad').addEventListener('click', () => ($('#privacidad').open = true))
 
 $('#fondo').addEventListener('change', async (evento) => {
   const visible = evento.target.checked
@@ -245,19 +314,26 @@ function mostrarResultado(archivo, { informe, limites, conteo, indices, archivos
 
   $('#estado').hidden = true
   $('#bienvenida').hidden = true
+  $('#app').dataset.vista = 'resultado' // la zona de carga se achica: ya no es lo principal
   $('#elegir').textContent = 'Elegir otro archivo'
-  $('#archivo-actual').textContent = `${archivo.name} · ${plural(informe.parcelas, 'parcela', 'parcelas')} · revisado ${
+  $('#archivo-nombre').textContent = archivo.name
+  $('#archivo-meta').textContent = `${plural(informe.parcelas, 'parcela', 'parcelas')} · revisado ${
     segundos < 0.1 ? 'al instante' : `en ${segundos.toFixed(1)} s`
   }`
+  $('#archivo-actual').hidden = false
   const v = veredicto(conteo)
   $('#veredicto').className = `veredicto ${v.clase}`
-  $('#veredicto').textContent = v.texto
+  $('#veredicto-icono').innerHTML = ICONOS[v.clase]
+  $('#veredicto-texto').textContent = v.texto
   const { errores, advertencias } = informe.resumen
   $('#alcance').textContent =
     `En total, ${plural(errores, 'error', 'errores')} y ${plural(advertencias, 'advertencia', 'advertencias')} ` +
     'en 12 reglas de geolocalización. Deslinde no revisa deforestación.'
-  for (const severidad of ['error', 'advertencia', 'ok']) {
+  for (const severidad of SEVERIDADES) {
     $(`#cuenta-${severidad}`).textContent = numero.format(conteo[severidad])
+    // Cada tramo de la barra ocupa lo que su grupo de parcelas.
+    $(`#tramo-${severidad}`).style.flexGrow = String(conteo[severidad])
+    $(`#tramo-${severidad}`).hidden = conteo[severidad] === 0
   }
   $('#sin-dibujar').hidden = conteo.sinDibujar === 0
   $('#sin-dibujar').textContent =
@@ -280,6 +356,7 @@ function mostrarResultado(archivo, { informe, limites, conteo, indices, archivos
 function mostrarFallo(mensaje) {
   mostrarEstado(mensaje, { error: true })
   anunciar(mensaje)
+  $('#archivo-actual').hidden = true
   $('#resultado').hidden = true
   $('#lista').hidden = true
   $('#mapa-vacio').hidden = false
@@ -293,6 +370,7 @@ async function revisar(archivo) {
   if (!FORMATOS.test(archivo.name)) {
     return mostrarFallo(`"${archivo.name}" no es un GeoJSON ni un CSV. Deslinde v0 lee esos dos formatos; KML y shapefile llegan en una versión futura.`)
   }
+  $('#archivo-actual').hidden = true
   $('#resultado').hidden = true
   mostrarEstado('Leyendo el archivo…', { avance: null })
   const formato = /\.csv$/i.test(archivo.name) ? 'csv' : 'geojson'

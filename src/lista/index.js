@@ -3,6 +3,7 @@
 // Se dibuja solo un tramo de TAMANO_PAGINA en TAMANO_PAGINA, para que un
 // archivo con miles de hallazgos no llene la página de golpe.
 
+import { ICONOS } from '../iconos.js'
 import { conteoPorRegla, filtrar, NOMBRES_DE_REGLA, TAMANO_PAGINA, tramoPara } from './datos.js'
 
 const numero = new Intl.NumberFormat('en-US')
@@ -18,16 +19,20 @@ const panelConDesplazamiento = () => window.matchMedia('(min-width: 801px)').mat
  */
 export function crearLista(contenedor, { alElegir }) {
   contenedor.innerHTML = `
-    <h2>Hallazgos</h2>
+    <div class="lista-cabeza">
+      <h2>Hallazgos</h2>
+      <span class="contador"></span>
+    </div>
     <div class="filtros">
-      <label>Severidad
-        <select class="filtro-severidad"></select>
-      </label>
-      <label>Regla
+      <fieldset class="segmentos filtro-severidad">
+        <legend class="oculto">Severidad</legend>
+      </fieldset>
+      <label class="filtro-regla-etiqueta">
+        <span>Regla</span>
         <select class="filtro-regla"></select>
       </label>
     </div>
-    <p class="nota lista-cuenta" aria-live="polite"></p>
+    <p class="lista-cuenta" aria-live="polite"></p>
     <button type="button" class="mas antes" hidden></button>
     <ul class="hallazgos"></ul>
     <button type="button" class="mas despues" hidden></button>
@@ -46,12 +51,33 @@ export function crearLista(contenedor, { alElegir }) {
     return o
   }
 
+  // Un botón de radio por severidad: se ve como un control segmentado y se usa
+  // con las flechas del teclado, como cualquier grupo de radios.
+  function segmento(valor, texto, cantidad) {
+    const etiqueta = document.createElement('label')
+    const radio = document.createElement('input')
+    radio.type = 'radio'
+    radio.name = 'severidad'
+    radio.value = valor
+    radio.checked = valor === 'todas'
+    const cara = document.createElement('span')
+    const cifra = document.createElement('b')
+    cifra.textContent = numero.format(cantidad)
+    cara.append(`${texto} `, cifra)
+    etiqueta.append(radio, cara)
+    return etiqueta
+  }
+
+  const severidadElegida = () => contenedor.querySelector('input[name="severidad"]:checked')?.value ?? 'todas'
+
   function llenarFiltros() {
     const errores = todos.filter((h) => h.severidad === 'error').length
+    $('.contador').textContent = numero.format(todos.length)
     $('.filtro-severidad').replaceChildren(
-      opcion('todas', `Todas (${numero.format(todos.length)})`),
-      opcion('error', `Errores (${numero.format(errores)})`),
-      opcion('advertencia', `Advertencias (${numero.format(todos.length - errores)})`),
+      $('.filtro-severidad legend'),
+      segmento('todas', 'Todos', todos.length),
+      segmento('error', 'Errores', errores),
+      segmento('advertencia', 'Advertencias', todos.length - errores),
     )
     $('.filtro-regla').replaceChildren(
       opcion('todas', 'Todas las reglas'),
@@ -65,26 +91,35 @@ export function crearLista(contenedor, { alElegir }) {
     const li = document.createElement('li')
     // Con ubicación es un botón que lleva al mapa; sin ella (R1), solo texto.
     const cuerpo = document.createElement(h.ubicacion ? 'button' : 'div')
-    cuerpo.className = 'hallazgo'
+    cuerpo.className = `hallazgo ${h.severidad}`
     cuerpo.dataset.posicion = String(posicion)
     if (h.ubicacion) cuerpo.type = 'button'
 
+    // La severidad se ve por la forma del ícono y se lee como texto oculto.
+    const icono = document.createElement('span')
+    icono.className = 'hallazgo-icono'
+    icono.innerHTML = ICONOS[h.severidad] // dibujo fijo, no viene del archivo
+    const severidad = document.createElement('span')
+    severidad.className = 'oculto'
+    severidad.textContent = h.severidad === 'error' ? 'Error: ' : 'Advertencia: '
+
+    const texto = document.createElement('span')
+    texto.className = 'hallazgo-texto'
     const cabeza = document.createElement('span')
     cabeza.className = 'hallazgo-cabeza'
-    const marca = document.createElement('span')
-    marca.className = `marca ${h.severidad}`
-    marca.title = h.severidad === 'error' ? 'Error' : 'Advertencia'
     const parcela = document.createElement('strong')
+    parcela.className = 'hallazgo-parcela'
     parcela.textContent = h.parcela
     const regla = document.createElement('span')
     regla.className = 'regla'
-    regla.textContent = h.regla
-    cabeza.append(marca, parcela, regla)
+    regla.textContent = `${h.regla} · ${NOMBRES_DE_REGLA[h.regla] ?? ''}`
+    cabeza.append(parcela, regla)
 
     const mensaje = document.createElement('span')
     mensaje.className = 'hallazgo-mensaje'
     mensaje.textContent = h.ubicacion ? h.mensaje : `${h.mensaje} No se puede mostrar en el mapa.`
-    cuerpo.append(cabeza, mensaje)
+    texto.append(cabeza, mensaje)
+    cuerpo.append(icono, severidad, texto)
     li.append(cuerpo)
     return li
   }
@@ -140,7 +175,7 @@ export function crearLista(contenedor, { alElegir }) {
   }
 
   function aplicarFiltro() {
-    filtrados = filtrar(todos, { severidad: $('.filtro-severidad').value, regla: $('.filtro-regla').value })
+    filtrados = filtrar(todos, { severidad: severidadElegida(), regla: $('.filtro-regla').value })
     tramo = { desde: 0, hasta: TAMANO_PAGINA }
     dibujar()
   }

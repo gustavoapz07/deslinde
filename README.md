@@ -102,17 +102,28 @@ Medido el 28-09-2026 en el navegador, con el build de producción y el archivo d
 
 ## La página
 
-Pensada para técnicos de cooperativas y encargados de cumplimiento, en español simple:
+Pensada para técnicos de cooperativas, exportadores y encargados de cumplimiento, en español simple.
 
-- **Primera vista**: qué hace Deslinde en tres pasos, el botón para elegir un archivo y **"Probar con un ejemplo"**,
+**Identidad**: verde de cafetal para la marca y las acciones y fondos cálidos color pergamino (así se comercia
+el café en Honduras). El logo es un grano de café oro (el café verde de exportación) dentro de las marcas de
+esquina de un encuadre: Deslinde revisa los límites de cada parcela. Los títulos van en Bitter (Huerta
+Tipográfica), una serifa de losa que recuerda la rotulación de los sacos de exportación, servida desde el propio
+sitio; el texto de la interfaz, en la fuente del sistema; los códigos de parcela, en monoespaciada. Sin degradados,
+sin etiquetas tipo píldora y sin títulos en mayúsculas pequeñas: cada sección tiene un título de verdad.
+
+
+- **Primera vista**: una zona para soltar el archivo (en pantallas táctiles invita a elegirlo), el botón **"Probar con un ejemplo"**,
   que carga `datos/sinteticos/errores-mezclados.geojson` (24 parcelas inventadas, un caso por regla).
   Quien visita el portafolio no tiene un archivo de parcelas a mano.
 - **Arrastrar y soltar** el archivo en cualquier parte de la página. Un formato que no es GeoJSON ni CSV recibe un mensaje claro.
 - **Avance** con barra mientras el worker revisa.
-- **Veredicto** en una frase, contando parcelas (lo que hay que ir a corregir): "7 parcelas tienen errores. Corríjalas antes de enviar el archivo."
-  Debajo, qué se revisó y qué no: 12 reglas de geolocalización, no deforestación.
+- **Veredicto** en una frase, con un ícono de forma distinta por severidad, contando parcelas (lo que hay que ir a corregir):
+  "7 parcelas tienen errores. Corríjalas antes de enviar el archivo." Debajo, qué se revisó y qué no: 12 reglas de
+  geolocalización, no deforestación. Luego, una barra con la proporción de parcelas de cada grupo y sus cifras.
+- **Hallazgos** con filtro segmentado por severidad (radios, se usa con las flechas del teclado) y por regla. Cada hallazgo
+  lleva el ícono de su severidad, el código de la parcela y el nombre de la regla, no solo su número.
 - **Ayuda plegable**: qué revisa cada regla y qué formato acepta, con el archivo de ejemplo para descargar.
-- **Privacidad**: la casilla del mapa base con lo que recibe OpenFreeMap, y el aviso de herramienta de apoyo.
+- **Mapa base**: un interruptor sobre el mapa, donde se buscan las capas, con un enlace a la explicación de privacidad del panel.
 - **Celular**: resultado, mapa, lista y ayuda, uno debajo del otro, para que el mapa se vea apenas termina la revisión.
 - **Accesibilidad**: al terminar la revisión o al fallar, un aviso para lectores de pantalla dice el veredicto
   (`#anuncio`); el avance no se anuncia. Los controles del mapa están en español. La lista es la forma de
@@ -121,12 +132,13 @@ Pensada para técnicos de cooperativas y encargados de cumplimiento, en español
 ## Peso y seguridad
 
 - **El mapa se carga aparte** (`import()` en `src/main.js`). MapLibre es casi todo el peso: sin él, la página
-  se puede usar con unos 12 KB comprimidos (antes, 296 KB). Los 435 KB del mapa y su worker bajan enseguida,
+  se puede usar con unos 16 KB comprimidos (antes, 296 KB). Los 435 KB del mapa y su worker bajan enseguida,
   en segundo plano. Si no llegan, la revisión, la lista y las descargas funcionan igual y el mapa lo avisa.
 
   | Qué | Comprimido (gzip) | Cuándo baja |
   |-----|-------------------|-------------|
-  | Página (HTML, JS y CSS) | 12 KB | Al abrir |
+  | Página (HTML, JS y CSS) | 16 KB | Al abrir |
+  | Fuente Bitter de los títulos (solo alfabeto latino) | 34 KB | Al abrir, en paralelo; mientras tanto se usa Georgia |
   | MapLibre y su CSS | 291 KB | Justo después, en segundo plano |
   | Worker de MapLibre | 144 KB | Cuando arranca el mapa |
   | Motor (worker, con Turf) | 26 KB | Al revisar el primer archivo |
@@ -215,10 +227,11 @@ estrella que no se cruzan ni se solapan entre sí.
 | Geometría | `@turf/turf` | 7.4.0 | MIT |
 | Mapa | `maplibre-gl` | 6.11.2 | BSD-3-Clause |
 | Mapa base (servicio, sin paquete) | OpenFreeMap, estilo `positron` | — | Datos © OpenStreetMap (ODbL), OpenMapTiles |
+| Tipografía de los títulos | `@fontsource-variable/bitter` | 5.3.0 | OFL-1.1 |
 | Servidor de desarrollo y compilación | `vite` | 8.3.1 | MIT |
 | Pruebas | `vitest` | 5.0.2 | MIT |
 
-Versiones y licencias leídas del `package.json` de cada paquete instalado el 28-09-2026.
+Versiones y licencias leídas del `package.json` de cada paquete instalado el 28-09-2026 (la tipografía, el 29-09-2026).
 
 ## Licencia
 

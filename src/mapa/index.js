@@ -49,7 +49,7 @@ function contenidoDeFicha(ficha) {
     for (const h of ficha.hallazgos) {
       const item = document.createElement('li')
       const regla = document.createElement('b')
-      regla.textContent = `${h.regla} · `
+      regla.textContent = h.regla
       const accion = document.createElement('small')
       accion.textContent = h.accion
       item.append(regla, h.mensaje, document.createElement('br'), accion)

@@ -80,7 +80,7 @@ export const CAPAS = [
 ]
 
 export const VACIA = { type: 'FeatureCollection', features: [] }
-const FONDO_LISO = { id: 'fondo-liso', type: 'background', paint: { 'background-color': '#eeede9' } }
+const FONDO_LISO = { id: 'fondo-liso', type: 'background', paint: { 'background-color': '#ece7dc' } }
 
 /**
  * Estilo completo del mapa: el mapa base (si está activado y cargado) y encima
