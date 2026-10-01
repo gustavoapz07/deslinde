@@ -144,7 +144,7 @@ describe('salidas', () => {
     const csv = informeCSV(informe)
     expect(csv.startsWith('﻿')).toBe(true)
     const filas = csv.slice(1).split('\r\n').filter(Boolean)
-    expect(filas[0]).toBe('parcela,regla,severidad,longitud,latitud,mensaje,accion')
+    expect(filas[0]).toBe('parcela,archivo,regla,severidad,longitud,latitud,mensaje,accion')
     expect(filas).toHaveLength(informe.resultados.length + 1)
     // El mensaje de R4 lleva una coma: va entre comillas.
     expect(csv).toContain('"La parcela queda fuera de Honduras (punto -84.000000, 10.000000)."')

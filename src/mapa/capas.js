@@ -315,14 +315,16 @@ export const esCapaPropia = (id) => id.startsWith('deslinde-')
  * Devuelve datos, no HTML: los textos vienen del archivo del usuario y la
  * página los escribe como texto.
  * @param {number} indice
- * @param {import('../lista/datos.js').Hallazgo[]} hallazgos  Todos los del archivo.
+ * @param {import('../lista/datos.js').Hallazgo[]} hallazgos  Todos los de la revisión.
  * @param {string} [id]  Código de la parcela, si se conoce (una parcela sin hallazgos no lo trae en la lista).
+ * @param {string} [archivo]  De qué archivo viene, cuando se juntaron varios.
  */
-export function fichaDeParcela(indice, hallazgos, id) {
+export function fichaDeParcela(indice, hallazgos, id, archivo) {
   const propios = hallazgos.filter((h) => h.indice === indice)
   const severidad = peorSeveridad(propios)
   return {
     titulo: id ?? propios[0]?.parcela ?? `n.º ${indice + 1}`,
+    archivo,
     estado: NOMBRES[severidad],
     severidad,
     hallazgos: propios.map((h) => ({ regla: h.regla, severidad: h.severidad, mensaje: h.mensaje, accion: h.accion })),

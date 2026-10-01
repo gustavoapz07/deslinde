@@ -47,10 +47,16 @@ export function conteoPorRegla(hallazgos) {
 
 /**
  * @param {Hallazgo[]} hallazgos
- * @param {{severidad?: 'todas'|'error'|'advertencia', regla?: string}} [filtro]
+ * @param {{severidad?: 'todas'|'error'|'advertencia', regla?: string, archivo?: string}} [filtro]
+ *   `archivo` sirve al juntar varios: los hallazgos de las parcelas de ese archivo.
  */
-export function filtrar(hallazgos, { severidad = 'todas', regla = 'todas' } = {}) {
-  return hallazgos.filter((h) => (severidad === 'todas' || h.severidad === severidad) && (regla === 'todas' || h.regla === regla))
+export function filtrar(hallazgos, { severidad = 'todas', regla = 'todas', archivo = 'todos' } = {}) {
+  return hallazgos.filter(
+    (h) =>
+      (severidad === 'todas' || h.severidad === severidad) &&
+      (regla === 'todas' || h.regla === regla) &&
+      (archivo === 'todos' || h.archivo === archivo),
+  )
 }
 
 /** Peor severidad de un grupo de hallazgos: 'error', 'advertencia' u 'ok' si no hay. */

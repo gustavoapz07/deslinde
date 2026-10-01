@@ -1,6 +1,7 @@
 // Página de Deslinde: cargar un archivo (o el de ejemplo), revisarlo en el Web
 // Worker con el avance en pantalla, ver el veredicto, las parcelas en el mapa y
-// la lista de hallazgos enlazada, y descargar las salidas.
+// la lista de hallazgos enlazada, y descargar las salidas. Se pueden sumar
+// archivos de otras fuentes: se revisan juntos y se descargan en uno solo.
 //
 // Pantalla ancha: panel a la izquierda y el mapa en todo el resto, con la
 // leyenda, el interruptor del mapa base y la ficha de la parcela encima.
@@ -50,9 +51,11 @@ document.querySelector('#app').innerHTML = `
         </div>
         <div class="carga">
           <input id="archivo" class="oculto" type="file" accept="${ACEPTA}" multiple />
-          <div class="archivo-actual" id="archivo-actual" hidden>
-            <span class="archivo-icono">${ICONOS.archivo}</span>
-            <span class="archivo-datos"><strong id="archivo-nombre"></strong><span id="archivo-meta"></span></span>
+          <div class="archivos" id="archivos" hidden>
+            <ul class="fuentes" id="fuentes" aria-label="Archivos revisados"></ul>
+            <input id="sumar" class="oculto" type="file" accept="${ACEPTA}" multiple />
+            <label for="sumar" class="sumar"><span class="archivo-icono">${ICONOS.sumar}</span><span>Sumar otro archivo</span></label>
+            <p class="archivos-meta" id="archivos-meta" hidden></p>
           </div>
           <div class="zona">
             <span class="zona-icono">${ICONOS.subir}</span>
@@ -96,7 +99,7 @@ document.querySelector('#app').innerHTML = `
           </div>
           <div class="descargas">
             <a id="bajar-informe" class="descarga" title="Una fila por hallazgo. Se abre en Excel.">${ICONOS.descargar}<span>Informe <small>CSV</small></span></a>
-            <a id="bajar-corregido" class="descarga" title="Con las tres correcciones seguras. Lo demás se corrige en el archivo de origen.">${ICONOS.descargar}<span>Archivo corregido <small>GeoJSON</small></span></a>
+            <a id="bajar-corregido" class="descarga">${ICONOS.descargar}<span><span id="bajar-corregido-nombre">Archivo corregido</span> <small>GeoJSON</small></span></a>
           </div>
         </div>
       </section>
@@ -275,8 +278,9 @@ function mostrarEstado(texto, { error = false, avance } = {}) {
   }
 }
 
+const leyendo = (cuantos) => (cuantos > 1 ? 'Leyendo los archivos…' : 'Leyendo el archivo…')
 const FASES = {
-  leyendo: () => ['Leyendo el archivo…', null],
+  leyendo: (a, cuantos) => [leyendo(cuantos), null],
   revisando: (a) => [`Revisando parcelas: ${numero.format(a.hechas)} de ${numero.format(a.total)}`, a],
   comparando: () => ['Comparando las parcelas entre sí…', null],
   salidas: () => ['Preparando el mapa y las descargas…', null],
@@ -300,32 +304,81 @@ function veredicto(conteo) {
   if (conteo.error > 0) {
     return {
       clase: 'error',
-      texto: `${plural(conteo.error, 'parcela tiene errores', 'parcelas tienen errores')}. Corríjalas antes de enviar el archivo.`,
+      texto: `${plural(conteo.error, 'parcela tiene errores', 'parcelas tienen errores')}. ${conteo.error === 1 ? 'Corríjala' : 'Corríjalas'} antes de enviar el archivo.`,
     }
   }
   if (conteo.advertencia > 0) {
     return {
       clase: 'advertencia',
-      texto: `Ninguna parcela tiene errores. ${plural(conteo.advertencia, 'tiene advertencias', 'tienen advertencias')}: revíselas antes de enviar.`,
+      texto: `Ninguna parcela tiene errores. ${plural(conteo.advertencia, 'tiene advertencias', 'tienen advertencias')}: ${conteo.advertencia === 1 ? 'revísela' : 'revíselas'} antes de enviar.`,
     }
   }
   return { clase: 'ok', texto: 'Ninguna parcela tiene hallazgos en las 12 reglas revisadas.' }
 }
 
-function mostrarResultado(nombre, { informe, limites, conteo, indices, archivos }, segundos) {
+// Los archivos de la revisión a la vista (File), en el orden en que se mandaron
+// al worker: cada fuente del informe dice cuáles son los suyos (`de`).
+let actuales = []
+
+// Botón para quitar una fuente de la revisión: se vuelve a revisar sin sus
+// archivos. Un .zip que trae varias fuentes sale entero.
+function botonQuitar(fuente) {
+  const boton = document.createElement('button')
+  boton.type = 'button'
+  boton.className = 'quitar'
+  boton.innerHTML = ICONOS.cerrar // dibujo fijo, no viene del archivo
+  boton.title = 'Quitar de la revisión'
+  boton.setAttribute('aria-label', `Quitar ${fuente.nombre}`)
+  boton.addEventListener('click', () => revisar(actuales.filter((_, i) => !fuente.de.includes(i)), { alTerminar: () => $('#sumar').focus() }))
+  return boton
+}
+
+// Lista de archivos revisados. Con uno solo, su nombre y cuántas parcelas trae;
+// con varios, además el total, y cada uno se puede quitar. Un archivo que no se
+// pudo leer aparece con el motivo, sin frenar a los demás.
+function mostrarFuentes(fuentes, revisado) {
+  const varias = fuentes.length > 1
+  const filas = fuentes.map((f) => {
+    const fila = document.createElement('li')
+    fila.className = f.error ? 'fuente con-error' : 'fuente'
+    const icono = document.createElement('span')
+    icono.className = 'archivo-icono'
+    icono.innerHTML = f.error ? ICONOS.error : ICONOS.archivo
+    const datos = document.createElement('span')
+    datos.className = 'archivo-datos'
+    const nombre = document.createElement('strong')
+    nombre.textContent = f.nombre
+    const detalle = document.createElement('span')
+    const parcelas = plural(f.parcelas, 'parcela', 'parcelas')
+    detalle.textContent = f.error ? `No se pudo leer. ${f.error}` : varias ? parcelas : `${parcelas} · ${revisado}`
+    datos.append(nombre, detalle)
+    fila.append(icono, datos)
+    // Se puede quitar mientras quede otro archivo que revisar.
+    if (varias && f.de.length < actuales.length) fila.append(botonQuitar(f))
+    return fila
+  })
+  $('#fuentes').replaceChildren(...filas)
+  const legibles = fuentes.filter((f) => !f.error)
+  const total = legibles.reduce((suma, f) => suma + f.parcelas, 0)
+  $('#archivos-meta').hidden = !varias
+  $('#archivos-meta').textContent = `${plural(total, 'parcela', 'parcelas')} en ${plural(legibles.length, 'archivo', 'archivos')} · ${revisado}`
+  $('#archivos').hidden = false
+}
+
+function mostrarResultado(enviados, { informe, limites, conteo, indices, archivos }, segundos) {
   // Las URLs del archivo anterior se sueltan recién ahora, cuando el mapa ya no las usa.
   const viejas = urls
   urls = []
+  actuales = enviados
 
   $('#estado').hidden = true
   $('#bienvenida').hidden = true
   $('#app').dataset.vista = 'resultado' // la zona de carga se achica: ya no es lo principal
-  $('#elegir').textContent = 'Elegir otro archivo'
-  $('#archivo-nombre').textContent = nombre
-  $('#archivo-meta').textContent = `${plural(informe.parcelas, 'parcela', 'parcelas')} · revisado ${
-    segundos < 0.1 ? 'al instante' : `en ${segundos.toFixed(1)} s`
-  }`
-  $('#archivo-actual').hidden = false
+  $('#elegir').textContent = informe.fuentes.length > 1 ? 'Elegir otros archivos' : 'Elegir otro archivo'
+  mostrarFuentes(informe.fuentes, segundos < 0.1 ? 'revisado al instante' : `revisado en ${segundos.toFixed(1)} s`)
+  // Con varios archivos legibles, las descargas son de todos juntos.
+  const legibles = informe.fuentes.filter((f) => !f.error)
+  const varias = legibles.length > 1
   const v = veredicto(conteo)
   $('#veredicto').className = `veredicto ${v.clase}`
   $('#veredicto-icono').innerHTML = ICONOS[v.clase]
@@ -344,13 +397,18 @@ function mostrarResultado(nombre, { informe, limites, conteo, indices, archivos 
   $('#sin-dibujar').textContent =
     `${plural(conteo.sinDibujar, 'parcela no se puede dibujar', 'parcelas no se pueden dibujar')}: ` +
     'sus coordenadas no están en grados o no se pueden leer. Está en la lista y en el informe.'
-  enlazar($('#bajar-informe'), archivos.informe, `${nombreBase(nombre)}-informe.csv`)
-  enlazar($('#bajar-corregido'), archivos.corregido, `${nombreBase(nombre)}-corregido.geojson`)
+  const base = varias ? 'parcelas-unidas' : nombreBase(legibles[0].nombre)
+  enlazar($('#bajar-informe'), archivos.informe, `${base}-informe.csv`)
+  enlazar($('#bajar-corregido'), archivos.corregido, varias ? `${base}.geojson` : `${base}-corregido.geojson`)
+  $('#bajar-corregido-nombre').textContent = varias ? 'Archivo unido' : 'Archivo corregido'
+  $('#bajar-corregido').title = varias
+    ? `Las parcelas de los ${legibles.length} archivos en uno solo, con las tres correcciones seguras y el archivo de origen de cada una.`
+    : 'Con las tres correcciones seguras. Lo demás se corrige en el archivo de origen.'
   $('#resultado').hidden = false
   anunciar(`Revisión terminada. ${v.texto}`)
 
   const hallazgos = unirIndices(informe.resultados, indices)
-  lista.mostrar(hallazgos)
+  lista.mostrar(hallazgos, { archivos: varias ? legibles.map((f) => f.nombre) : [] })
   $('#lista').hidden = false
   $('#mapa-vacio').hidden = !sinMapa // si el mapa no cargó, su aviso se queda
   mapa.mostrar({
@@ -359,6 +417,7 @@ function mostrarResultado(nombre, { informe, limites, conteo, indices, archivos 
     urlHallazgos: nuevaUrl(archivos.hallazgos),
     limites,
     hallazgos,
+    varias,
   })
   // MapLibre lee las capas en su worker; se deja un margen antes de soltar las URLs viejas.
   setTimeout(() => viejas.forEach((url) => URL.revokeObjectURL(url)), 5000)
@@ -367,7 +426,7 @@ function mostrarResultado(nombre, { informe, limites, conteo, indices, archivos 
 function mostrarFallo(mensaje) {
   mostrarEstado(mensaje, { error: true })
   anunciar(mensaje)
-  $('#archivo-actual').hidden = true
+  $('#archivos').hidden = true
   $('#resultado').hidden = true
   $('#lista').hidden = true
   $('#mapa-vacio').hidden = false
@@ -375,25 +434,26 @@ function mostrarFallo(mensaje) {
   lista.limpiar()
 }
 
-// ---------- Revisar un archivo ----------
+// ---------- Revisar uno o varios archivos ----------
 
-// El nombre que se muestra: el del archivo, o el .shp si llegaron las partes de un shapefile.
-const nombreDe = (archivos) => (archivos.find((a) => /\.shp$/i.test(a.name)) ?? archivos[0]).name
-
-/** @param {File[]} archivos  Uno, o los de un shapefile. */
-async function revisar(archivos) {
-  $('#archivo-actual').hidden = true
+/**
+ * @param {File[]} archivos  Uno, los de un shapefile o los de varias fuentes: se revisan juntos.
+ * @param {{alTerminar?: () => void}} [ajustes]
+ */
+async function revisar(archivos, { alTerminar } = {}) {
+  $('#archivos').hidden = true
   $('#resultado').hidden = true
-  mostrarEstado('Leyendo el archivo…', { avance: null })
+  mostrarEstado(leyendo(archivos.length), { avance: null })
   const inicio = performance.now()
   try {
     const resultado = await validador.validar(archivos, {
       alAvanzar: (avance) => {
-        const [texto, cifra] = FASES[avance.fase](avance)
+        const [texto, cifra] = FASES[avance.fase](avance, archivos.length)
         mostrarEstado(texto, { avance: cifra })
       },
     })
-    mostrarResultado(nombreDe(archivos), resultado, (performance.now() - inicio) / 1000)
+    mostrarResultado(archivos, resultado, (performance.now() - inicio) / 1000)
+    alTerminar?.()
   } catch (e) {
     if (e instanceof Cancelado) return // llegó otro archivo; ese ya muestra su avance
     // Los mensajes de ErrorDeArchivo ya dicen qué falla en el archivo; los demás, que no es culpa del archivo.
@@ -405,6 +465,21 @@ $('#archivo').addEventListener('change', (evento) => {
   const archivos = [...evento.target.files]
   evento.target.value = '' // permite volver a elegir el mismo archivo después de corregirlo
   if (archivos.length > 0) revisar(archivos)
+})
+
+// Sumar archivos a la revisión a la vista. Uno que ya está (mismo nombre,
+// tamaño y fecha) no se suma de nuevo: sus parcelas saldrían todas repetidas.
+const mismoArchivo = (a, b) => a.name === b.name && a.size === b.size && a.lastModified === b.lastModified
+$('#sumar').addEventListener('change', (evento) => {
+  const elegidos = [...evento.target.files]
+  evento.target.value = ''
+  const nuevos = elegidos.filter((a) => !actuales.some((b) => mismoArchivo(a, b)))
+  if (nuevos.length > 0) return revisar([...actuales, ...nuevos])
+  if (elegidos.length > 0) {
+    const texto = elegidos.length === 1 ? 'Ese archivo ya está en la revisión.' : 'Esos archivos ya están en la revisión.'
+    mostrarEstado(texto)
+    anunciar(texto)
+  }
 })
 
 async function probarEjemplo() {

@@ -23,7 +23,8 @@ La investigación, las decisiones y el plan están en la bóveda de Obsidian `Ag
 | 4. Portafolio | Presentación del caso hecha el 30-09-2026; el post se publica al terminar la v1 |
 | 5. Rediseño | Hecho el 30-09-2026: tema oscuro con el mapa al centro, parcelas agrupadas de lejos y con su código de cerca, ficha al costado (92 pruebas pasan) |
 | 6a. KML y shapefile | Hecha el 01-10-2026: KML, KMZ y shapefile (en .zip o con sus archivos sueltos), comprobado contra pyshp (120 pruebas pasan) |
-| 6b a 6d. Resto de la v1 | Siguen: juntar archivos de varias fuentes, revisión de bosque 2020 con evidencia e informe en PDF |
+| 6b. Juntar archivos de varias fuentes | Hecha el 01-10-2026: varios archivos se revisan juntos, R11 avisa de la misma parcela en dos archivos (por geometría o por código) y sale un solo archivo unido (147 pruebas pasan) |
+| 6c y 6d. Resto de la v1 | Siguen: revisión de bosque 2020 con evidencia e informe en PDF |
 
 ## Cómo correrlo
 
@@ -70,8 +71,27 @@ a ser `14.5`). El shapefile no tiene texto: guarda números binarios. Ahí R2 ma
 coordenada necesita más de 5 decimales, es decir, si se exportó redondeada. Contar como en el texto marcaría
 casi todo polígono, porque uno de cada diez números medidos con 6 decimales termina en cero.
 
-Un archivo a la vez: si llegan varios archivos de parcelas o un `.zip` con dos shapefiles, Deslinde lo dice.
-Juntar archivos de varias fuentes es la parte 6b de la v1.
+## Juntar archivos de varias fuentes
+
+Un exportador suele recibir parcelas de varios lados: una cooperativa, un beneficio, sus técnicos de campo, cada
+uno en su formato. Deslinde acepta **varios archivos a la vez**, de formatos distintos (elegidos juntos, o sumados
+después de la primera revisión), y los trata como un solo conjunto:
+
+- Cada archivo es una **fuente**. Un shapefile son varios archivos (`.shp`, `.dbf`…) que forman una sola; un `.zip`
+  puede traer varias. Las partes sueltas de dos shapefiles se emparejan por su nombre.
+- Las parcelas de todas se revisan **juntas**: R10 encuentra solapes entre archivos y R11, la misma parcela en dos
+  archivos, por tener la misma geometría o el mismo código. Cada aviso nombra el archivo de la otra parcela y, si
+  tiene el mismo código, su posición en ese archivo ("la n.º 8 de beneficio-sur.kml").
+- Cada hallazgo dice de qué archivo es su parcela: en la lista (que además se filtra por archivo), en la ficha del
+  mapa y en la columna `archivo` del informe CSV.
+- El **archivo unido** (GeoJSON) trae las parcelas de todos, con las correcciones seguras y la propiedad
+  `archivo_origen` de cada una. Si una parcela ya la traía de una unión anterior, se respeta.
+- Un archivo que no se puede leer no frena a los demás: aparece en la lista con el motivo. Solo si ninguno se puede
+  leer la revisión falla.
+- Un archivo se puede quitar de la revisión. Uno que ya está (mismo nombre, tamaño y fecha) no se suma dos veces.
+
+El código se compara sin espacios alrededor y sin distinguir mayúsculas (`hn-0101 ` y `HN-0101` son el mismo).
+Las parcelas sin código no cuentan para esta parte de R11.
 
 ## Uso del motor
 
@@ -79,23 +99,27 @@ Juntar archivos de varias fuentes es la parte 6b de la v1.
 import { validarTexto, informeCSV, geojsonCorregido } from './src/motor/index.js'
 
 const informe = validarTexto(texto, { formato: 'geojson' }) // o 'csv' o 'kml'
-// informe.resultados: [{ parcela, regla, severidad, ubicacion, mensaje, accion }]
+// informe.resultados: [{ parcela, archivo, regla, severidad, ubicacion, mensaje, accion }]
 const csv = informeCSV(informe)            // una fila por hallazgo, con BOM para Excel
 const corregido = geojsonCorregido(texto)  // GeoJSON EPSG:4326 con las correcciones seguras
 ```
 
 Si el archivo no se puede leer, `validarTexto` lanza `ErrorDeArchivo` con un mensaje en español.
 
-Para archivos binarios o comprimidos (shapefile, KMZ, `.zip`), `leerArchivos` (`src/motor/archivos.js`) recibe
-los nombres y los bytes, decide el formato por la extensión y devuelve el texto o las parcelas ya leídas, que
-`analizar` acepta igual que el texto:
+Para archivos binarios o comprimidos (shapefile, KMZ, `.zip`) y para varios archivos, `leerArchivos`
+(`src/motor/archivos.js`) recibe los nombres y los bytes, decide el formato de cada uno por la extensión y devuelve
+una **fuente** por archivo de parcelas, ya leída. `analizar` revisa las fuentes juntas:
 
 ```js
 import { leerArchivos } from './src/motor/archivos.js'
 import { analizar } from './src/motor/index.js'
 
-const entrada = leerArchivos([{ nombre: 'fincas.zip', bytes }]) // { formato: 'shapefile', nombre, parcelas }
-const { informe } = analizar(entrada.texto ?? entrada, { formato: entrada.formato })
+const fuentes = leerArchivos([
+  { nombre: 'cooperativa.kml', bytes },
+  { nombre: 'tecnicos.zip', bytes: otros },
+]) // [{ nombre, formato, parcelas, de }, …]; las que no se leen traen `error` en vez de `parcelas`
+const { informe } = analizar(fuentes)
+// informe.fuentes: [{ nombre, formato, parcelas, error?, de }]; cada resultado trae su `archivo`
 ```
 
 **Correcciones seguras** que aplica el GeoJSON corregido: invierte pares latitud/longitud (R3), cierra
@@ -115,7 +139,7 @@ import { crearValidador, Cancelado, ErrorDeArchivo } from './src/validador.js'
 
 const validador = crearValidador()
 const { informe, limites, archivos } = await validador.validar(elegidos, {
-  // elegidos: los File que eligió la persona (uno, o los de un shapefile)
+  // elegidos: los File que eligió la persona (uno, los de un shapefile o los de varias fuentes)
   alAvanzar: (avance) => { /* mostrar el avance */ },
 })
 // archivos.mapa: capa GeoJSON para MapLibre, una parcela por Feature con su peor severidad
@@ -154,13 +178,17 @@ acciones. Sin degradados, sin etiquetas tipo píldora y sin títulos en mayúscu
 - **Primera vista**: una zona para soltar el archivo (en pantallas táctiles invita a elegirlo) y el botón **"Probar con un ejemplo"**,
   que carga `datos/sinteticos/errores-mezclados.geojson` (24 parcelas inventadas, un caso por regla). El mapa vacío
   ofrece lo mismo: quien visita el portafolio no tiene un archivo de parcelas a mano.
-- **Arrastrar y soltar** el archivo en cualquier parte de la página. Un formato que no es GeoJSON ni CSV recibe un mensaje claro.
+- **Arrastrar y soltar** el archivo en cualquier parte de la página. Un formato que Deslinde no lee recibe un mensaje claro.
+- **Archivos revisados**: el nombre de cada uno y cuántas parcelas trae, o por qué no se pudo leer. Debajo, "Sumar otro
+  archivo" agrega uno a la revisión; con varios, cada uno se puede quitar y se ve el total. Soltar archivos sobre la
+  página empieza una revisión nueva (así, el archivo corregido reemplaza al anterior en vez de duplicarlo).
 - **Avance** con barra mientras el worker revisa.
 - **Veredicto** en una frase, con un ícono de forma distinta por severidad, contando parcelas (lo que hay que ir a corregir):
   "7 parcelas tienen errores. Corríjalas antes de enviar el archivo." Debajo, qué se revisó y qué no: 12 reglas de
   geolocalización, no deforestación. Luego, las cifras de cada grupo y una barra con su proporción.
-- **Hallazgos** en filas, con filtro segmentado por severidad (radios, se usa con las flechas del teclado) y por regla. Cada
-  hallazgo lleva el ícono de su severidad, el código de la parcela y el nombre de la regla, no solo su número.
+- **Hallazgos** en filas, con filtro segmentado por severidad (radios, se usa con las flechas del teclado), por regla y,
+  al juntar varios archivos, por archivo. Cada hallazgo lleva el ícono de su severidad, el código de la parcela (y su
+  archivo, si hay varios) y el nombre de la regla, no solo su número.
 - **Ayuda plegable**: qué revisa cada regla, qué corrige el archivo corregido y qué formato acepta, con el archivo de ejemplo para descargar.
 - **Celular**: resultado, mapa, lista y ayuda, uno debajo del otro, para que el mapa se vea apenas termina la revisión.
   La ficha de la parcela sube desde abajo y tapa la mitad del mapa como mucho.
@@ -213,7 +241,7 @@ un verde apenas insinuado para que se distingan bosques, ríos y caminos y mande
   repetido…), desde el zoom 13, y al lado dice su regla ("R6").
 - **Parcelas que se cruzan (R6)**: se dibujan como contorno. Como polígono, un moño tiene área neta cero y
   MapLibre lo descarta al cortar en teselas: la parcela desaparecía del mapa.
-- **Clic en una parcela**: se marca con un borde blanco y se abre su ficha (código, estado, hallazgos y qué hacer),
+- **Clic en una parcela**: se marca con un borde blanco y se abre su ficha (código, archivo si hay varios, estado, hallazgos y qué hacer),
   fija a la derecha del mapa (abajo en el celular), no encima de la parcela. Los textos del archivo se escriben
   como texto, nunca como HTML. Si el clic no cae dentro de una parcela, se busca en un margen de 6 px, para
   acertarle a un contorno o a una marca con el dedo. Al pasar el mouse, un globo dice el código y el estado.
@@ -239,11 +267,12 @@ La parte que no necesita MapLibre (estilo, teñido del mapa base, capas, ficha) 
   En celular, además, trae el mapa a la vista. Los hallazgos sin ubicación (R1) se muestran como texto.
 - **Mapa → lista**: al elegir una parcela en el mapa, la lista marca sus hallazgos y los centra en el panel. Al cerrar la ficha, se desmarcan.
 - **Filtros** por severidad y por regla, con la cantidad de cada una: sirve para ver cuál es el problema más común.
+  Al juntar varios archivos, también por archivo: para ver qué pedirle a cada fuente.
 - **De a 100**: la lista dibuja un tramo de 100 hallazgos, con "Mostrar 100 más" y "Mostrar 100 anteriores".
   Si se elige en el mapa una parcela que cae más abajo, la lista salta a su tramo en vez de dibujar todo lo anterior
   (con 10,000 hallazgos, dibujarlos todos congelaba la página 1.85 s).
-- Cada hallazgo sabe la posición de su parcela en el archivo (`indices`, que entrega el worker), no solo su código:
-  dos parcelas con el mismo código no se mezclan.
+- Cada hallazgo sabe la posición de su parcela en la revisión (`indices`, que entrega el worker), no solo su código:
+  dos parcelas con el mismo código, del mismo archivo o de dos distintos, no se mezclan.
 
 La parte sin DOM (filtros, conteo por regla, tramo) está en `src/lista/datos.js` y se prueba en Node (`pruebas/lista.test.js`).
 
@@ -261,7 +290,7 @@ La parte sin DOM (filtros, conteo por regla, tramo) está en `src/lista/datos.js
 | R8 | Un multipolígono no junta partes separadas | Error |
 | R9 | Más de 4 ha como polígono, no como punto; punto sin área declarada | Error / advertencia |
 | R10 | Solapes entre parcelas de más de 10 m². El aviso va en las dos parcelas y cada una nombra a la otra | Advertencia |
-| R11 | Geometrías duplicadas. Cada copia lleva un aviso que nombra a las demás | Advertencia |
+| R11 | Parcelas duplicadas: la misma geometría, o el mismo código con otra geometría, también entre archivos. Cada copia lleva un aviso que nombra a las demás | Advertencia |
 | R12 | Área declarada contra área calculada | Advertencia |
 
 ## Datos sintéticos
@@ -273,9 +302,16 @@ La parte sin DOM (filtros, conteo por regla, tramo) está en `src/lista/datos.js
 - `grande-10000.geojson`: 10,000 parcelas sin errores, para medir el rendimiento. No se guarda en Git.
 - `casos/`: un archivo por regla, numerado como los casos de prueba.
 - `errores-mezclados.geojson`: 10 parcelas válidas y todos los casos juntos, para la demo.
+- Las mismas parcelas en KML, KMZ y shapefile (`valido.kml`, `valido.kmz`, `valido-poligonos-shp.zip`,
+  `valido-puntos-shp.zip` y `errores-mezclados.kml`).
+- `juntar/`: tres fuentes de un mismo exportador, cada una en su formato (`cooperativa-norte.geojson`,
+  `beneficio-sur.kml` y `tecnicos-centro-shp.zip`), con un código de registro común. Traen la misma parcela en dos
+  archivos, una parcela medida dos veces, un solape entre archivos, dos parcelas distintas con el mismo código y un
+  shapefile exportado con 5 decimales.
 
 Las parcelas se dibujan en una cuadrícula dentro de una zona interior de Honduras. Son polígonos en
-estrella que no se cruzan ni se solapan entre sí.
+estrella que no se cruzan ni se solapan entre sí. Los `.zip` y el `.kmz` llevan una fecha fija adentro, para
+que también salgan iguales en cada corrida.
 
 ## Stack
 

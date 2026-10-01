@@ -10,7 +10,7 @@
 // su atributo id.
 
 import { parse } from 'txml'
-import { aNumero, ErrorDeArchivo, etiquetaDe } from './errores.js'
+import { aNumero, codigoDe, ErrorDeArchivo, etiquetaDe } from './errores.js'
 
 const ENTIDADES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }
 
@@ -125,6 +125,7 @@ export function leerKML(textoKML) {
     const { tipo, coords, textos } = nodoGeometria ? geometria(nodoGeometria) : {}
     return {
       indice,
+      codigo: codigoDe(propiedades.id),
       etiqueta: etiquetaDe(propiedades.id, indice),
       propiedades,
       tipo,

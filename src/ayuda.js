@@ -14,7 +14,7 @@ const REGLAS = [
   ['R8', 'Error', 'Un multipolígono no debe juntar partes que no se tocan.'],
   ['R9', 'Error o advertencia', 'Una parcela de más de 4 ha debe venir como polígono, no como punto. Un punto sin área declarada se marca como advertencia.'],
   ['R10', 'Advertencia', 'Dos parcelas no deben solaparse. El aviso aparece en las dos.'],
-  ['R11', 'Advertencia', 'La misma parcela no debe venir dos veces. El aviso aparece en cada copia.'],
+  ['R11', 'Advertencia', 'La misma parcela no debe venir dos veces: ni con la misma geometría ni con el mismo código. El aviso aparece en cada copia, también entre archivos distintos.'],
   ['R12', 'Advertencia', 'El área declarada no debe diferir en más de 10 % del área que se calcula con el borde.'],
 ]
 
@@ -43,4 +43,5 @@ export const AYUDA_FORMATO = `
   <p><strong>KML o KMZ</strong>, como los de Google Earth, con una parcela por <code>Placemark</code>. El código sale del dato <code>id</code> de <code>ExtendedData</code> o, si no está, del nombre del Placemark; el área, del dato <code>area_ha</code>.</p>
   <p><strong>Shapefile</strong> en grados: un .zip con el .shp, el .dbf y sus compañeros, o esos archivos elegidos juntos. El .dbf trae las columnas <code>ID</code>, <code>AREA_HA</code> y, si se quiere, <code>PRODUCTOR</code>. Como el shapefile guarda las coordenadas como números y no como texto, la regla de los 6 decimales mira si vienen redondeadas.</p>
   <p><strong>CSV de puntos</strong> con las columnas <code>id</code>, <code>productor</code>, <code>latitud</code>, <code>longitud</code> y <code>area_ha</code>, separadas por coma o punto y coma.</p>
+  <p><strong>Varios archivos</strong>, de fuentes y formatos distintos: elíjalos juntos o súmelos después de la primera revisión. Deslinde revisa todas las parcelas juntas, avisa si una parcela viene en dos archivos o se solapa con la de otro, y entrega un solo archivo unido que dice de dónde vino cada parcela.</p>
 `

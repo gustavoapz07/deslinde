@@ -1,4 +1,5 @@
-// Salidas del motor: el informe de hallazgos en CSV y el GeoJSON corregido.
+// Salidas del motor: el informe de hallazgos en CSV y el GeoJSON corregido (con
+// varios archivos, uno solo con las parcelas de todos).
 
 import { analizar } from './index.js'
 
@@ -10,14 +11,15 @@ function campoCSV(valor) {
 }
 
 /**
- * Informe de hallazgos en CSV, una fila por hallazgo. Lleva BOM para que Excel
- * muestre bien las tildes.
+ * Informe de hallazgos en CSV, una fila por hallazgo, con el archivo de cada
+ * parcela (al juntar varios, para saber a quién pedir la corrección). Lleva
+ * BOM para que Excel muestre bien las tildes.
  * @param {import('./index.js').Informe} informe
  */
 export function informeCSV(informe) {
-  const cabecera = ['parcela', 'regla', 'severidad', 'longitud', 'latitud', 'mensaje', 'accion']
+  const cabecera = ['parcela', 'archivo', 'regla', 'severidad', 'longitud', 'latitud', 'mensaje', 'accion']
   const filas = informe.resultados.map((r) =>
-    [r.parcela, r.regla, r.severidad, r.ubicacion?.[0], r.ubicacion?.[1], r.mensaje, r.accion].map(campoCSV).join(','),
+    [r.parcela, r.archivo, r.regla, r.severidad, r.ubicacion?.[0], r.ubicacion?.[1], r.mensaje, r.accion].map(campoCSV).join(','),
   )
   return '﻿' + [cabecera.join(','), ...filas].join('\r\n') + '\r\n'
 }
@@ -39,11 +41,16 @@ export function geojsonCorregido(texto, opciones = {}) {
   return escribirCorregido(analizar(texto, opciones).parcelas)
 }
 
-/** Igual que geojsonCorregido, pero con las parcelas que ya devolvió `analizar`. */
-export function escribirCorregido(parcelas) {
+/**
+ * Igual que geojsonCorregido, pero con las parcelas que ya devolvió `analizar`.
+ * Con `origen`, al juntar varios archivos, cada parcela lleva `archivo_origen`:
+ * el archivo de donde vino, salvo que ya lo traiga de una unión anterior.
+ */
+export function escribirCorregido(parcelas, { origen = false } = {}) {
   const lineas = parcelas.map((p) => {
     const geometry = p.tipo === undefined ? null : { type: p.tipo, coordinates: p.textos === undefined ? null : marcar(p.textos) }
-    return JSON.stringify({ type: 'Feature', properties: p.propiedades, geometry }).replace(/"#(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)#"/g, '$1')
+    const properties = origen ? { ...p.propiedades, archivo_origen: p.propiedades.archivo_origen || p.archivo } : p.propiedades
+    return JSON.stringify({ type: 'Feature', properties, geometry }).replace(/"#(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)#"/g, '$1')
   })
   return `{"type":"FeatureCollection","features":[\n${lineas.join(',\n')}\n]}\n`
 }

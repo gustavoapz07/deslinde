@@ -4,14 +4,17 @@
 // escribir el GeoJSON corregido sin inventar ni perder precisión. El shapefile,
 // que es binario, se lee en shapefile.js.
 
-import { aNumero, ErrorDeArchivo, etiquetaDe } from './errores.js'
+import { aNumero, codigoDe, ErrorDeArchivo, etiquetaDe } from './errores.js'
 import { leerKML } from './kml.js'
 
 export { ErrorDeArchivo }
 
 /**
  * @typedef {Object} Parcela
- * @property {number} indice      Posición en el archivo, desde 0.
+ * @property {number} indice      Posición en el archivo, desde 0. Al revisar varios
+ *   archivos juntos, analizar (index.js) la pasa a `posicion` y le da una posición
+ *   en la revisión; también le agrega su `archivo`, su `fuente` y su `formato`.
+ * @property {string|null} codigo El `id` tal como viene, o null si no trae.
  * @property {string} etiqueta    Código para el informe: `id`, o uno de reserva si falta.
  * @property {Object} propiedades Propiedades originales, para el GeoJSON corregido.
  * @property {string|undefined} tipo  Point, Polygon, MultiPolygon u otro.
@@ -97,6 +100,7 @@ function leerGeoJSON(texto) {
     const [coords, textos] = geometria?.coordinates === undefined ? [undefined, undefined] : separar(geometria.coordinates)
     return {
       indice,
+      codigo: codigoDe(propiedades.id ?? f?.id),
       etiqueta: etiquetaDe(propiedades.id ?? f?.id, indice),
       propiedades,
       tipo: geometria?.type,
@@ -159,6 +163,7 @@ function leerCSV(texto) {
     const textos = [campos[iLon] ?? '', campos[iLat] ?? '']
     return {
       indice,
+      codigo: codigoDe(propiedades.id),
       etiqueta: etiquetaDe(propiedades.id, indice),
       propiedades,
       tipo: 'Point',

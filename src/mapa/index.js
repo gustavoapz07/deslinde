@@ -64,7 +64,9 @@ function contenidoDeFicha(ficha, alCerrar) {
   icono.innerHTML = ICONOS[ficha.severidad]
   const cuantos = ficha.hallazgos.length > 0 ? ` · ${plural(ficha.hallazgos.length, 'hallazgo', 'hallazgos')}` : ''
   estado.append(icono, `${ficha.estado}${cuantos}`)
-  titulos.append(codigo, estado)
+  titulos.append(codigo)
+  if (ficha.archivo) titulos.append(nodo('p', 'ficha-archivo', ficha.archivo)) // al juntar varios archivos
+  titulos.append(estado)
   const cerrar = nodo('button', 'ficha-cerrar')
   cerrar.type = 'button'
   cerrar.setAttribute('aria-label', 'Cerrar la ficha')
@@ -98,6 +100,7 @@ export function crearMapa(contenedor, { conFondo = true, ficha, globo, controles
   const estado = { base: null, parcelas: undefined, centros: undefined, hallazgos: undefined }
   /** @type {import('../lista/datos.js').Hallazgo[]} */
   let hallazgos = []
+  let conArchivo = false // se juntaron varios archivos: la ficha dice de cuál es cada parcela
   let fondoPedido = false
   let seleccion = null
   let encima = null
@@ -169,9 +172,10 @@ export function crearMapa(contenedor, { conFondo = true, ficha, globo, controles
     if (avisar) avisarEleccion(null)
   }
 
-  function abrirFicha(indice, id) {
+  function abrirFicha(indice, id, archivo) {
     elegir(indice)
-    ficha.replaceChildren(...contenidoDeFicha(fichaDeParcela(indice, hallazgos, id), () => cerrarFicha()))
+    const datos = fichaDeParcela(indice, hallazgos, id, conArchivo ? archivo : undefined)
+    ficha.replaceChildren(...contenidoDeFicha(datos, () => cerrarFicha()))
     ficha.hidden = false
     ficha.scrollTop = 0
   }
@@ -227,7 +231,7 @@ export function crearMapa(contenedor, { conFondo = true, ficha, globo, controles
     }
     const parcela = elementoEn(e.point, capasPresentes(CAPAS_CLIC))
     if (!parcela) return cerrarFicha() // clic fuera de las parcelas: cierra la ficha
-    abrirFicha(parcela.id, parcela.properties.id)
+    abrirFicha(parcela.id, parcela.properties.id, parcela.properties.archivo)
     avisarEleccion(parcela.id)
   })
 
@@ -247,7 +251,8 @@ export function crearMapa(contenedor, { conFondo = true, ficha, globo, controles
       const { point_count: total, errores, advertencias } = grupo.properties
       globo.textContent = `${total} parcelas: ${errores} con errores, ${advertencias} solo con advertencias. Haga clic para acercarse.`
     } else {
-      globo.textContent = `${parcela.properties.id} · ${NOMBRES[parcela.properties.severidad]}`
+      const { id, archivo, severidad } = parcela.properties
+      globo.textContent = [id, archivo, NOMBRES[severidad]].filter(Boolean).join(' · ')
     }
     const id = parcela ? parcela.id : null
     if (id !== encima) {
@@ -269,14 +274,16 @@ export function crearMapa(contenedor, { conFondo = true, ficha, globo, controles
 
     /**
      * Muestra el resultado de una revisión.
-     * @param {{urlCapa: string, urlCentros: string, urlHallazgos: string, limites: number[]|null, hallazgos: import('../lista/datos.js').Hallazgo[]}} datos
+     * @param {{urlCapa: string, urlCentros: string, urlHallazgos: string, limites: number[]|null, hallazgos: import('../lista/datos.js').Hallazgo[], varias?: boolean}} datos
      *   Las URLs son de los Blob que arma el worker: MapLibre las lee en su propio worker.
+     *   `varias`: se juntaron varios archivos.
      */
-    mostrar({ urlCapa, urlCentros, urlHallazgos, limites, hallazgos: nuevos }) {
+    mostrar({ urlCapa, urlCentros, urlHallazgos, limites, hallazgos: nuevos, varias = false }) {
       cerrarFicha({ avisar: false })
       seleccion = null
       encima = null
       hallazgos = nuevos
+      conArchivo = varias
       estado.parcelas = urlCapa
       estado.centros = urlCentros
       estado.hallazgos = urlHallazgos
@@ -289,9 +296,9 @@ export function crearMapa(contenedor, { conFondo = true, ficha, globo, controles
      * ubicación (R1) no se puede mostrar.
      * @param {import('../lista/datos.js').Hallazgo} hallazgo
      */
-    enfocar({ indice, ubicacion, parcela }) {
+    enfocar({ indice, ubicacion, parcela, archivo }) {
       if (!ubicacion) return
-      abrirFicha(indice, parcela)
+      abrirFicha(indice, parcela, archivo)
       mapa.flyTo({ center: ubicacion, zoom: Math.max(mapa.getZoom(), 16), duration: 800, padding: margenes() })
     },
 

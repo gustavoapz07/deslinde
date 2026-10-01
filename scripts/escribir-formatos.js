@@ -47,8 +47,13 @@ export function textoKML(features, { titulo = 'Parcelas de Deslinde' } = {}) {
   ].join('\n')
 }
 
+// Fecha fija dentro de los comprimidos: sin ella, cada corrida los escribe
+// distintos (guardan la hora) y Git los ve cambiados. Sin zona horaria, para que
+// dé lo mismo en cualquier equipo.
+const FECHA_FIJA = { mtime: '2026-09-28T12:00:00' }
+
 /** KMZ: el KML comprimido en un .zip, con el nombre doc.kml como lo deja Google Earth. */
-export const bytesKMZ = (textoDeKML) => zipSync({ 'doc.kml': strToU8(textoDeKML) })
+export const bytesKMZ = (textoDeKML) => zipSync({ 'doc.kml': strToU8(textoDeKML) }, FECHA_FIJA)
 
 // ---------- Shapefile ----------
 
@@ -213,5 +218,5 @@ export function archivosShapefile(features, { conZ = false, codificacion = 'utf-
 
 /** Los archivos del shapefile dentro de un .zip, como se suelen compartir. */
 export function bytesZipShapefile(nombre, archivos) {
-  return zipSync(Object.fromEntries(Object.entries(archivos).map(([ext, bytes]) => [`${nombre}.${ext}`, bytes])))
+  return zipSync(Object.fromEntries(Object.entries(archivos).map(([ext, bytes]) => [`${nombre}.${ext}`, bytes])), FECHA_FIJA)
 }

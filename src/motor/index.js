@@ -1,11 +1,14 @@
 // Motor de validación de Deslinde: lee el archivo, revisa cada parcela con las
-// reglas R1 a R12 y arma el informe. No usa servidor: todo corre donde se llame.
+// reglas R1 a R12 y arma el informe. Con varios archivos (fuentes), revisa sus
+// parcelas juntas: así salen los solapes y las parcelas repetidas entre uno y
+// otro. No usa servidor: todo corre donde se llame.
 
 import { leer } from './lector.js'
 import {
   reglaR1,
   reglaR10,
   reglaR11,
+  reglaR11Codigos,
   reglaR12,
   reglaR2,
   reglaR3yR4,
@@ -22,6 +25,7 @@ export { escribirCorregido, geojsonCorregido, informeCSV } from './salidas.js'
 /**
  * @typedef {Object} Resultado
  * @property {string} parcela       Código de la parcela (propiedad `id` del archivo).
+ * @property {string} [archivo]     Nombre del archivo de la parcela (no lo hay si se revisó un texto).
  * @property {string} regla         R1 a R12, ver la nota "Reglas de validación de geodatos".
  * @property {'error'|'advertencia'} severidad
  * @property {[number, number]|null} ubicacion  [longitud, latitud] donde mostrar el problema en el mapa.
@@ -31,7 +35,9 @@ export { escribirCorregido, geojsonCorregido, informeCSV } from './salidas.js'
 
 /**
  * @typedef {Object} Informe
- * @property {number} parcelas      Cantidad de parcelas leídas.
+ * @property {number} parcelas      Cantidad de parcelas leídas, de todos los archivos.
+ * @property {{nombre?: string, formato?: string, parcelas: number, error?: string, de?: number[]}[]} fuentes
+ *   Los archivos revisados, en orden, con sus parcelas o por qué no se pudieron leer.
  * @property {Resultado[]} resultados
  * @property {{errores: number, advertencias: number, parcelasConErrores: number}} resumen
  */
@@ -51,7 +57,7 @@ function revisarParcela(p, opciones) {
   const r1 = reglaR1(p)
   if (r1) return { hallazgos: [r1], comparable: false, dibujable: false }
 
-  const hallazgos = [reglaR3yR4(p, opciones.formato), reglaR2(p)]
+  const hallazgos = [reglaR3yR4(p, p.formato), reglaR2(p)]
   if (p.tipo === 'Point') {
     hallazgos.push(reglaR9(p))
     return { hallazgos, comparable: true, dibujable: true }
@@ -74,21 +80,42 @@ function revisarParcela(p, opciones) {
  * @property {number} [total]
  */
 
+// Las fuentes de una revisión: el texto de un archivo, un archivo ya leído
+// ({formato, parcelas}) o varios (las fuentes que arma archivos.js).
+function fuentesDe(entrada, formato) {
+  if (typeof entrada === 'string') return [{ formato, parcelas: leer(entrada, formato) }]
+  return Array.isArray(entrada) ? entrada : [{ formato, ...entrada }]
+}
+
+// Todas las parcelas en una lista. Cada una guarda su posición en la revisión
+// (`indice`) y en su archivo (`posicion`), y de qué archivo viene. Las fuentes
+// que no se pudieron leer no traen parcelas.
+function juntar(fuentes, formato) {
+  const parcelas = []
+  fuentes.forEach((f, fuente) => {
+    f.parcelas?.forEach((p, posicion) => {
+      Object.assign(p, { indice: parcelas.length, posicion, fuente, archivo: f.nombre, formato: f.formato ?? formato })
+      parcelas.push(p)
+    })
+  })
+  return parcelas
+}
+
 /**
- * Lee y revisa un archivo. Devuelve también las parcelas ya corregidas
- * (pares invertidos, anillos cerrados, vértices repetidos quitados) para
- * escribir el GeoJSON corregido, y el estado de cada parcela para el mapa.
+ * Lee y revisa un archivo, o varios juntos. Devuelve también las parcelas ya
+ * corregidas (pares invertidos, anillos cerrados, vértices repetidos quitados)
+ * para escribir el GeoJSON corregido, y el estado de cada parcela para el mapa.
  * `opciones.alAvanzar(avance)` recibe el avance, para mostrarlo en pantalla.
- * @param {string | {formato?: string, parcelas: import('./lector.js').Parcela[]}} entrada
- *   El texto del archivo, o las parcelas ya leídas (el shapefile, que es binario,
- *   lo lee archivos.js).
+ * @param {string | {formato?: string, parcelas: import('./lector.js').Parcela[]} | import('./archivos.js').Fuente[]} entrada
+ *   El texto del archivo; las parcelas ya leídas (el shapefile, que es binario,
+ *   lo lee archivos.js); o las fuentes que devuelve leerArchivos.
  */
 export function analizar(entrada, opciones = {}) {
-  const yaLeidas = typeof entrada !== 'string'
-  const o = { ...OPCIONES_POR_DEFECTO, ...(yaLeidas && entrada.formato ? { formato: entrada.formato } : {}), ...opciones }
+  const o = { ...OPCIONES_POR_DEFECTO, ...opciones }
   const avisar = o.alAvanzar ?? (() => {})
   avisar({ fase: 'leyendo' })
-  const parcelas = yaLeidas ? entrada.parcelas : leer(entrada, o.formato)
+  const fuentes = fuentesDe(entrada, o.formato)
+  const parcelas = juntar(fuentes, o.formato)
   const encontrados = []
   const comparables = []
   const dibujables = []
@@ -108,7 +135,11 @@ export function analizar(entrada, opciones = {}) {
 
   avisar({ fase: 'comparando' })
   const r11 = reglaR11(comparables)
-  encontrados.push(...r11.hallazgos, ...reglaR10(comparables, r11.duplicadas, o.solapeMinimoM2))
+  encontrados.push(
+    ...r11.hallazgos,
+    ...reglaR11Codigos(parcelas, r11.duplicadas, dibujables),
+    ...reglaR10(comparables, r11.duplicadas, o.solapeMinimoM2),
+  )
 
   const numeroDeRegla = (r) => Number(r.regla.slice(1))
   encontrados.sort(
@@ -118,6 +149,7 @@ export function analizar(entrada, opciones = {}) {
 
   const resultados = encontrados.map(({ parcela, regla, severidad, ubicacion, mensaje, accion }) => ({
     parcela: parcela.etiqueta,
+    archivo: parcela.archivo,
     regla,
     severidad,
     ubicacion,
@@ -143,6 +175,13 @@ export function analizar(entrada, opciones = {}) {
     indices: encontrados.map((r) => r.parcela.indice),
     informe: {
       parcelas: parcelas.length,
+      fuentes: fuentes.map((f) => ({
+        nombre: f.nombre,
+        formato: f.formato,
+        parcelas: f.parcelas?.length ?? 0,
+        error: f.error,
+        de: f.de,
+      })),
       resultados,
       resumen: { errores, advertencias: resultados.length - errores, parcelasConErrores: conError.size },
     },

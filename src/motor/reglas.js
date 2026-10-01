@@ -1,4 +1,5 @@
-// Reglas R1 a R12 de la nota "Reglas de validación de geodatos", una función por regla.
+// Reglas R1 a R12 de la nota "Reglas de validación de geodatos", una función por
+// regla (R11 tiene dos: misma geometría y mismo código).
 // Cada función recibe una parcela (ver lector.js) y devuelve hallazgos sin el código
 // de parcela; index.js lo agrega. Las correcciones automáticas (invertir pares,
 // cerrar anillos, quitar vértices repetidos) cambian la parcela en su lugar y se
@@ -335,7 +336,9 @@ export function reglaR12(p, umbralPct) {
   )
 }
 
-// ---------- R10 · Solapes · R11 · Geometrías duplicadas (entre parcelas) ----------
+// ---------- R10 · Solapes · R11 · Parcelas duplicadas (entre parcelas) ----------
+// Con varios archivos, las parcelas de todos se comparan juntas: los avisos
+// nombran el archivo de la otra parcela cuando viene de otro.
 
 const CELDA_GRADOS = 0.01 // unos 1.1 km: cada parcela se compara solo con sus vecinas
 
@@ -344,14 +347,36 @@ function claveGeometria(p) {
   return `${p.tipo}:${redondeada}`
 }
 
-// "la parcela P-2" o "las parcelas P-2, P-3 y 4 más".
-function nombrar(parcelas) {
-  const MAXIMO = 3
-  if (parcelas.length === 1) return `la parcela ${parcelas[0].etiqueta}`
-  const nombres = parcelas.slice(0, MAXIMO).map((p) => p.etiqueta)
-  const resto = parcelas.length - nombres.length
-  const ultimo = resto > 0 ? `${resto} más` : nombres.pop()
-  return `las parcelas ${nombres.join(', ')} y ${ultimo}`
+// El código para comparar: sin espacios alrededor y sin distinguir mayúsculas
+// ("hn-0101 " y "HN-0101" son el mismo). Sin código, null.
+const claveCodigo = (p) => p.codigo?.trim().toUpperCase() || null
+
+const par = (p, q) => (p.indice < q.indice ? `${p.indice}|${q.indice}` : `${q.indice}|${p.indice}`)
+const posicionEnSuArchivo = (p) => (p.posicion ?? p.indice) + 1
+const centroDe = (p) => (p.tipo === 'Point' ? p.coords : centroid(geometria(p)).geometry.coordinates)
+
+// "a", "a y b", "a, b y c" o "a, b, c y 4 más".
+function enumerar(nombres, maximo = 3) {
+  if (nombres.length === 1) return nombres[0]
+  const vistos = nombres.slice(0, maximo)
+  const resto = nombres.length - vistos.length
+  const ultimo = resto > 0 ? `${resto} más` : vistos.pop()
+  return `${vistos.join(', ')} y ${ultimo}`
+}
+
+// Cómo se nombra a otra parcela en el aviso de una: por su código; con su
+// posición si tiene el mismo código, y con su archivo si viene de otro.
+function nombreDe(q, desde) {
+  const mismoCodigo = claveCodigo(q) !== null && claveCodigo(q) === claveCodigo(desde)
+  const posicion = mismoCodigo ? ` (n.º ${posicionEnSuArchivo(q)})` : ''
+  const archivo = q.fuente !== desde.fuente && q.archivo ? ` de ${q.archivo}` : ''
+  return `${q.etiqueta}${posicion}${archivo}`
+}
+
+// "la parcela P-2" o "las parcelas P-2, P-3 de sur.kml y 4 más".
+function nombrar(parcelas, desde) {
+  const nombres = parcelas.map((q) => nombreDe(q, desde))
+  return parcelas.length === 1 ? `la parcela ${nombres[0]}` : `las parcelas ${enumerar(nombres)}`
 }
 
 // Cada copia recibe un aviso que nombra a las demás: cuál se queda lo decide
@@ -369,19 +394,54 @@ export function reglaR11(parcelas) {
     if (grupo.length < 2) continue
     for (const p of grupo) {
       const otras = grupo.filter((q) => q !== p)
-      for (const q of otras) if (p.indice < q.indice) duplicadas.add(`${p.indice}|${q.indice}`)
+      for (const q of otras) duplicadas.add(par(p, q))
       hallazgos.push({
         parcela: p,
         ...advertencia(
           'R11',
-          ubicar(p.tipo === 'Point' ? p.coords : centroid(geometria(p)).geometry.coordinates),
-          `Tiene la misma geometría que ${nombrar(otras)}.`,
+          ubicar(centroDe(p)),
+          `Tiene la misma geometría que ${nombrar(otras, p)}.`,
           'Si es la misma parcela, deje un solo registro; si no, corrija la geometría.',
         ),
       })
     }
   }
   return { hallazgos, duplicadas }
+}
+
+// R11 también avisa cuando dos parcelas traen el mismo código con otra
+// geometría: puede ser la misma parcela medida dos veces o dos parcelas con el
+// código cruzado. Al juntar archivos de varias fuentes es lo más común. Mira
+// todas las parcelas, también las que no se pueden dibujar (esas, sin
+// ubicación). Los pares con la misma geometría ya tienen su aviso.
+export function reglaR11Codigos(parcelas, duplicadas, dibujables) {
+  const grupos = new Map()
+  for (const p of parcelas) {
+    const clave = claveCodigo(p)
+    if (clave === null) continue
+    if (!grupos.has(clave)) grupos.set(clave, [])
+    grupos.get(clave).push(p)
+  }
+  const hallazgos = []
+  for (const grupo of grupos.values()) {
+    if (grupo.length < 2) continue
+    for (const p of grupo) {
+      const otras = grupo.filter((q) => q !== p && !duplicadas.has(par(p, q)))
+      if (otras.length === 0) continue
+      const donde = otras.map((q) => `la n.º ${posicionEnSuArchivo(q)} de ${q.fuente === p.fuente ? 'este archivo' : (q.archivo ?? 'otro archivo')}`)
+      const quien = otras.length === 1 ? 'Otra parcela trae' : `Otras ${otras.length} parcelas traen`
+      hallazgos.push({
+        parcela: p,
+        ...advertencia(
+          'R11',
+          dibujables[p.indice] ? ubicar(centroDe(p)) : null,
+          `${quien} el mismo código con otra geometría: ${enumerar(donde)}.`,
+          'Si es la misma parcela medida dos veces, deje una sola medición; si son parcelas distintas, deles códigos distintos.',
+        ),
+      })
+    }
+  }
+  return hallazgos
 }
 
 export function reglaR10(parcelas, duplicadas, solapeMinimoM2) {
@@ -428,7 +488,7 @@ export function reglaR10(parcelas, duplicadas, solapeMinimoM2) {
             ...advertencia(
               'R10',
               donde,
-              `Se solapa con la parcela ${otra.etiqueta} en unos ${fmt(Math.round(m2))} m².`,
+              `Se solapa con la parcela ${nombreDe(otra, esta)} en unos ${fmt(Math.round(m2))} m².`,
               'Revise los bordes de ambas parcelas; si son la misma finca, deje una sola.',
             ),
           })

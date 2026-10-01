@@ -323,7 +323,16 @@ code {
   color: var(--acento-claro);
 }
 
-.archivo-actual {
+/* Archivos revisados: uno por fila y, al final, la acción de sumar otro. */
+.fuentes {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fuente {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -341,6 +350,7 @@ code {
 }
 
 .archivo-datos {
+  flex: 1;
   display: grid;
   min-width: 0;
 }
@@ -352,6 +362,72 @@ code {
 }
 
 .archivo-datos span {
+  font-size: 13px;
+  color: var(--texto-3);
+}
+
+.fuente.con-error .archivo-icono,
+.fuente.con-error .archivo-datos span {
+  color: var(--error-texto);
+}
+
+.quitar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--texto-3);
+  cursor: pointer;
+}
+
+.quitar:hover {
+  background: var(--superficie);
+  color: var(--texto);
+}
+
+.quitar .icono {
+  width: 16px;
+  height: 16px;
+}
+
+.sumar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  border-radius: 10px;
+  color: var(--acento);
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+/* El mismo borde punteado de la zona para soltar archivos: aquí también se suma uno. */
+.sumar .archivo-icono {
+  border: 1px dashed var(--linea-fuerte);
+  background: transparent;
+}
+
+.sumar:hover {
+  color: var(--acento-claro);
+}
+
+.sumar:hover .archivo-icono {
+  border-color: var(--acento);
+}
+
+/* El campo real está oculto: su foco se ve en la etiqueta. */
+#sumar:focus-visible + .sumar {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+.archivos-meta {
+  margin-top: 14px;
   font-size: 13px;
   color: var(--texto-3);
 }
@@ -609,7 +685,7 @@ code {
   color: var(--acento);
 }
 
-.descarga span {
+.descarga > span {
   display: grid;
   line-height: 1.3;
 }
@@ -840,6 +916,14 @@ li:has(> .hallazgo.activa) + li .hallazgo {
   font-size: 12.5px;
   font-weight: 600;
   color: var(--texto-3);
+}
+
+/* Al juntar varios archivos: de cuál es la parcela del hallazgo. */
+.hallazgo-archivo {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--texto-2);
+  overflow-wrap: anywhere;
 }
 
 .hallazgo-mensaje {
@@ -1184,6 +1268,13 @@ li:has(> .hallazgo.activa) + li .hallazgo {
   font-size: 18px;
   font-weight: 500;
   line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.ficha-archivo {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--texto-2);
   overflow-wrap: anywhere;
 }
 

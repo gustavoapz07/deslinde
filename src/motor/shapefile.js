@@ -9,7 +9,7 @@
 // Sin librería: las que hay traen reproyección o polyfills de codificaciones
 // que no hacen falta, y así los avisos quedan en español.
 
-import { aNumero, ErrorDeArchivo, etiquetaDe } from './errores.js'
+import { aNumero, codigoDe, ErrorDeArchivo, etiquetaDe } from './errores.js'
 
 const TIPOS = {
   0: null,
@@ -207,6 +207,7 @@ export function leerShapefile({ shp, dbf, cpg }) {
     const areaHa = typeof propiedades.area_ha === 'number' ? propiedades.area_ha : aNumero(propiedades.area_ha)
     parcelas.push({
       indice,
+      codigo: codigoDe(propiedades.id),
       etiqueta: etiquetaDe(propiedades.id, indice),
       propiedades,
       tipo: g.tipo,

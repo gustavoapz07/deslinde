@@ -31,6 +31,10 @@ export function crearLista(contenedor, { alElegir }) {
         <span>Regla</span>
         <select class="filtro-regla"></select>
       </label>
+      <label class="filtro-regla-etiqueta" hidden>
+        <span>Archivo</span>
+        <select class="filtro-regla filtro-archivo"></select>
+      </label>
     </div>
     <p class="lista-cuenta" aria-live="polite"></p>
     <button type="button" class="mas antes" hidden></button>
@@ -43,6 +47,7 @@ export function crearLista(contenedor, { alElegir }) {
   let filtrados = []
   let tramo = { desde: 0, hasta: TAMANO_PAGINA }
   let activa = null
+  let archivos = [] // al juntar varios, sus nombres: cada hallazgo dice de cuál es
 
   function opcion(valor, texto) {
     const o = document.createElement('option')
@@ -85,6 +90,12 @@ export function crearLista(contenedor, { alElegir }) {
         opcion(regla, `${regla} · ${NOMBRES_DE_REGLA[regla] ?? regla} (${numero.format(cantidad)})`),
       ),
     )
+    // Al juntar varios archivos, también por archivo: para ver qué pedirle a cada fuente.
+    $('.filtro-archivo').closest('label').hidden = archivos.length < 2
+    $('.filtro-archivo').replaceChildren(
+      opcion('todos', 'Todos los archivos'),
+      ...archivos.map((nombre) => opcion(nombre, `${nombre} (${numero.format(todos.filter((h) => h.archivo === nombre).length)})`)),
+    )
   }
 
   function item(h, posicion) {
@@ -113,7 +124,14 @@ export function crearLista(contenedor, { alElegir }) {
     const regla = document.createElement('span')
     regla.className = 'regla'
     regla.textContent = `${h.regla} · ${NOMBRES_DE_REGLA[h.regla] ?? ''}`
-    cabeza.append(parcela, regla)
+    cabeza.append(parcela)
+    if (archivos.length > 1) {
+      const archivo = document.createElement('span')
+      archivo.className = 'hallazgo-archivo'
+      archivo.textContent = h.archivo
+      cabeza.append(archivo)
+    }
+    cabeza.append(regla)
 
     const mensaje = document.createElement('span')
     mensaje.className = 'hallazgo-mensaje'
@@ -175,13 +193,14 @@ export function crearLista(contenedor, { alElegir }) {
   }
 
   function aplicarFiltro() {
-    filtrados = filtrar(todos, { severidad: severidadElegida(), regla: $('.filtro-regla').value })
+    filtrados = filtrar(todos, { severidad: severidadElegida(), regla: $('.filtro-regla').value, archivo: $('.filtro-archivo').value })
     tramo = { desde: 0, hasta: TAMANO_PAGINA }
     dibujar()
   }
 
   $('.filtro-severidad').addEventListener('change', aplicarFiltro)
   $('.filtro-regla').addEventListener('change', aplicarFiltro)
+  $('.filtro-archivo').addEventListener('change', aplicarFiltro)
   $('.despues').addEventListener('click', () => {
     tramo = { ...tramo, hasta: tramo.hasta + TAMANO_PAGINA }
     dibujar()
@@ -202,9 +221,13 @@ export function crearLista(contenedor, { alElegir }) {
   })
 
   return {
-    /** @param {import('./datos.js').Hallazgo[]} hallazgos */
-    mostrar(hallazgos) {
+    /**
+     * @param {import('./datos.js').Hallazgo[]} hallazgos
+     * @param {{archivos?: string[]}} [ajustes]  Los archivos, si se juntaron varios.
+     */
+    mostrar(hallazgos, { archivos: nombres = [] } = {}) {
       todos = hallazgos
+      archivos = nombres
       activa = null
       llenarFiltros()
       aplicarFiltro()

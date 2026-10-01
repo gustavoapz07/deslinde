@@ -28,8 +28,14 @@ const parcela = (id, geometry, extra = {}) => ({ type: 'Feature', properties: { 
 
 // Lista de archivos como la arma el worker: nombre y bytes.
 const comoArchivos = (base, archivos) => Object.entries(archivos).map(([ext, bytes]) => ({ nombre: `${base}.${ext}`, bytes }))
-const shapefileDe = (features, ajustes) => leerArchivos(comoArchivos('parcelas', archivosShapefile(features, ajustes)))
-const revisar = (entrada) => analizar(entrada, { formato: entrada.formato }).informe
+// La única fuente que sale de los archivos recibidos (juntar varias se prueba en juntar.test.js).
+function unaFuente(archivos) {
+  const fuentes = leerArchivos(archivos)
+  expect(fuentes).toHaveLength(1)
+  return fuentes[0]
+}
+const shapefileDe = (features, ajustes) => unaFuente(comoArchivos('parcelas', archivosShapefile(features, ajustes)))
+const revisar = (entrada) => analizar(entrada).informe
 
 describe('KML', () => {
   it('el mismo archivo en KML da los mismos hallazgos que en GeoJSON', () => {
@@ -116,14 +122,16 @@ describe('KML', () => {
 describe('KMZ y .zip', () => {
   it('un KMZ se abre como su KML', () => {
     const kml = datos('valido.kml')
-    const entrada = leerArchivos([{ nombre: 'valido.kmz', bytes: bytesKMZ(kml) }])
+    const entrada = unaFuente([{ nombre: 'valido.kmz', bytes: bytesKMZ(kml) }])
     expect(entrada.formato).toBe('kml')
-    expect(entrada.texto).toBe(kml)
+    expect(entrada.nombre).toBe('valido.kmz')
+    const directo = analizar(kml, { formato: 'kml' }).parcelas
+    expect(entrada.parcelas.map((p) => [p.etiqueta, p.textos])).toEqual(directo.map((p) => [p.etiqueta, p.textos]))
   })
 
   it('un .zip con un shapefile se lee como shapefile', () => {
     const bytes = readFileSync(join(DIR_DATOS, 'valido-poligonos-shp.zip'))
-    const entrada = leerArchivos([{ nombre: 'valido-poligonos-shp.zip', bytes: new Uint8Array(bytes) }])
+    const entrada = unaFuente([{ nombre: 'valido-poligonos-shp.zip', bytes: new Uint8Array(bytes) }])
     expect(entrada.formato).toBe('shapefile')
     expect(revisar(entrada).resultados).toEqual([])
   })
@@ -133,20 +141,12 @@ describe('KMZ y .zip', () => {
     expect(() => leerArchivos([{ nombre: 'algo.zip', bytes }])).toThrow(/no trae/)
   })
 
-  it('un .zip con dos shapefiles pide revisarlos de a uno', () => {
-    const a = archivosShapefile(parcelasValidas().filter((f) => f.geometry.type === 'Polygon').slice(0, 2))
-    const archivos = Object.fromEntries([
-      ...Object.entries(a).map(([ext, b]) => [`norte.${ext}`, b]),
-      ...Object.entries(a).map(([ext, b]) => [`sur.${ext}`, b]),
-    ])
-    expect(() => leerArchivos([{ nombre: 'dos.zip', bytes: zipSync(archivos) }])).toThrow(/uno a la vez/)
-  })
-
   it('reconoce cada formato por su extensión, sin importar mayúsculas', () => {
-    expect(leerArchivos([{ nombre: 'A.GEOJSON', bytes: strToU8('{}') }]).formato).toBe('geojson')
-    expect(leerArchivos([{ nombre: 'b.json', bytes: strToU8('{}') }]).formato).toBe('geojson')
-    expect(leerArchivos([{ nombre: 'c.csv', bytes: strToU8('id') }]).formato).toBe('csv')
-    expect(leerArchivos([{ nombre: 'd.KML', bytes: strToU8('<kml/>') }]).formato).toBe('kml')
+    const vacio = '{"type":"FeatureCollection","features":[]}'
+    expect(unaFuente([{ nombre: 'A.GEOJSON', bytes: strToU8(vacio) }]).formato).toBe('geojson')
+    expect(unaFuente([{ nombre: 'b.json', bytes: strToU8(vacio) }]).formato).toBe('geojson')
+    expect(unaFuente([{ nombre: 'c.csv', bytes: strToU8('id,latitud,longitud') }]).formato).toBe('csv')
+    expect(unaFuente([{ nombre: 'd.KML', bytes: strToU8('<kml><Placemark/></kml>') }]).formato).toBe('kml')
     expect(() => leerArchivos([{ nombre: 'e.gpx', bytes: strToU8('') }])).toThrow(ErrorDeArchivo)
   })
 })

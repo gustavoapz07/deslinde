@@ -18,7 +18,7 @@ export const MENSAJE_INTERNO =
  * @property {import('./index.js').Informe} informe
  * @property {[number, number, number, number]|null} limites  Caja para encuadrar el mapa: las parcelas dibujables dentro de Honduras, o todas si ninguna lo está.
  * @property {{error: number, advertencia: number, ok: number, sinDibujar: number}} conteo  Parcelas por peor severidad, para la leyenda.
- * @property {number[]} indices  Posición en el archivo de la parcela de cada resultado del informe, en el mismo orden.
+ * @property {number[]} indices  Posición en la revisión de la parcela de cada resultado del informe, en el mismo orden.
  * @property {{mapa: Blob, centros: Blob, hallazgos: Blob, informe: Blob, corregido: Blob}} archivos  Capas del mapa y descargas.
  */
 
@@ -51,16 +51,25 @@ function contorno(p) {
   return { type: 'MultiLineString', coordinates: anillos }
 }
 
+// Lo que sabe el mapa de cada parcela. Con varios archivos, también de cuál
+// viene, para la ficha y el globo.
+const propiedadesEnElMapa = (p, severidad, conArchivo) => ({
+  indice: p.indice,
+  id: p.etiqueta,
+  severidad,
+  ...(conArchivo && { archivo: p.archivo }),
+})
+
 // Capa del mapa: una parcela por Feature, con su peor severidad. Las que no se
 // pueden dibujar (R1, anillos incompletos) quedan fuera; siguen en el informe.
-export function capaDelMapa(parcelas, estados) {
+export function capaDelMapa(parcelas, estados, { conArchivo = false } = {}) {
   const features = []
   for (const p of parcelas) {
     const { severidad, dibujable, cruzada } = estados[p.indice]
     if (!dibujable) continue
     features.push({
       type: 'Feature',
-      properties: { indice: p.indice, id: p.etiqueta, severidad },
+      properties: propiedadesEnElMapa(p, severidad, conArchivo),
       geometry: cruzada ? contorno(p) : { type: p.tipo, coordinates: p.coords },
     })
   }
@@ -86,14 +95,14 @@ function centroDe(p, cruzada) {
  * encima al acercarse. Las que no se pueden dibujar quedan fuera, como en la
  * capa del mapa.
  */
-export function capaDeCentros(parcelas, estados) {
+export function capaDeCentros(parcelas, estados, { conArchivo = false } = {}) {
   const features = []
   for (const p of parcelas) {
     const { severidad, dibujable, cruzada } = estados[p.indice]
     if (!dibujable) continue
     features.push({
       type: 'Feature',
-      properties: { indice: p.indice, id: p.etiqueta, severidad },
+      properties: propiedadesEnElMapa(p, severidad, conArchivo),
       geometry: { type: 'Point', coordinates: centroDe(p, cruzada) },
     })
   }
@@ -120,15 +129,18 @@ export function capaDeHallazgos(resultados) {
 }
 
 /**
- * Revisa el archivo y prepara todo lo que la página necesita.
- * @param {string | {formato: string, parcelas: import('./lector.js').Parcela[]}} entrada
- *   El texto, o las parcelas ya leídas (shapefile).
+ * Revisa el archivo, o varios juntos, y prepara todo lo que la página necesita.
+ * Con varios archivos legibles, las capas del mapa dicen de cuál viene cada
+ * parcela y el GeoJSON corregido los junta en uno, con el archivo de origen.
+ * @param {string | {formato: string, parcelas: import('./lector.js').Parcela[]} | import('./archivos.js').Fuente[]} entrada
+ *   El texto, las parcelas ya leídas (shapefile) o las fuentes de leerArchivos.
  * @returns {ResultadoDelTrabajo}
  */
 export function procesar(entrada, opciones = {}) {
   const { parcelas, estados, indices, informe } = analizar(entrada, opciones)
   opciones.alAvanzar?.({ fase: 'salidas' })
-  const mapa = capaDelMapa(parcelas, estados)
+  const varias = informe.fuentes.filter((f) => !f.error).length > 1
+  const mapa = capaDelMapa(parcelas, estados, { conArchivo: varias })
   return {
     informe,
     limites: encuadre(mapa),
@@ -136,10 +148,10 @@ export function procesar(entrada, opciones = {}) {
     indices,
     archivos: {
       mapa: new Blob([JSON.stringify(mapa)], { type: 'application/geo+json' }),
-      centros: new Blob([JSON.stringify(capaDeCentros(parcelas, estados))], { type: 'application/geo+json' }),
+      centros: new Blob([JSON.stringify(capaDeCentros(parcelas, estados, { conArchivo: varias }))], { type: 'application/geo+json' }),
       hallazgos: new Blob([JSON.stringify(capaDeHallazgos(informe.resultados))], { type: 'application/geo+json' }),
       informe: new Blob([informeCSV(informe)], { type: 'text/csv;charset=utf-8' }),
-      corregido: new Blob([escribirCorregido(parcelas)], { type: 'application/geo+json' }),
+      corregido: new Blob([escribirCorregido(parcelas, { origen: varias })], { type: 'application/geo+json' }),
     },
   }
 }
@@ -152,14 +164,13 @@ async function prepararEntrada(entrada, formato) {
   const lista = Array.isArray(entrada) ? entrada : [entrada]
   if (lista.length === 1 && !lista[0].name) return { entrada: await lista[0].text(), formato }
   const archivos = await Promise.all(lista.map(async (a) => ({ nombre: a.name, bytes: new Uint8Array(await a.arrayBuffer()) })))
-  const leido = leerArchivos(archivos)
-  return { entrada: leido.texto ?? leido, formato: leido.formato }
+  return { entrada: leerArchivos(archivos), formato }
 }
 
 /**
  * Atiende un pedido de la página. `entrada` puede ser el texto, un Blob o los
- * archivos (File, uno o varios, como los de un shapefile): con los archivos, la
- * lectura también ocurre fuera de la página.
+ * archivos (File, uno o varios: los de un shapefile o de varias fuentes): con
+ * los archivos, la lectura también ocurre fuera de la página.
  * Responde con mensajes { id, tipo: 'avance' | 'listo' | 'error' }.
  */
 export async function atender({ id, entrada, formato, opciones = {} }, enviar) {

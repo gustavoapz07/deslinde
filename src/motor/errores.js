@@ -8,10 +8,11 @@ export class ErrorDeArchivo extends Error {
   }
 }
 
+/** Código de la parcela tal como viene en el archivo, o null si no trae. */
+export const codigoDe = (id) => (id === undefined || id === null || id === '' ? null : String(id))
+
 /** Código de la parcela para el informe: el `id`, o uno de reserva si falta. */
-export function etiquetaDe(id, indice) {
-  return id === undefined || id === null || id === '' ? `sin código (n.º ${indice + 1})` : String(id)
-}
+export const etiquetaDe = (id, indice) => codigoDe(id) ?? `sin código (n.º ${indice + 1})`
 
 /** Número de un texto, o NaN si viene vacío. */
 export const aNumero = (t) => (typeof t === 'string' && t.trim() !== '' ? Number(t) : NaN)

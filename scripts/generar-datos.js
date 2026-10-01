@@ -243,6 +243,52 @@ function textoCSV(features) {
   return ['id,productor,latitud,longitud,area_ha', ...filas].join('\n') + '\n'
 }
 
+// Ejemplo para juntar archivos (v1, parte 6b): un exportador recibe las parcelas
+// de tres fuentes, cada una en su formato. Usan un código de registro común
+// ("HN-…"), así que la misma parcela puede llegar de dos lados. Van en las filas
+// 20 a 22 de la cuadrícula, lejos de las demás parcelas sintéticas.
+export function parcelasParaJuntar() {
+  const azar = crearAzar(SEMILLA + 6)
+  const celda = (fila, columna) => centroDeCelda(20 + fila, columna, azar)
+  const codigoHN = (n) => `HN-${String(n).padStart(4, '0')}`
+  const poligonal = (id, productor, centro, hectareas) => {
+    const geometria = poligono(centro, hectareas, azar)
+    return parcela(id, productor, geometria, hectareasDe(geometria))
+  }
+
+  // La cooperativa: diez parcelas, dos de ellas como punto.
+  const centrosNorte = Array.from({ length: 10 }, (_, i) => celda(0, i))
+  const norte = centrosNorte.map((centro, i) => {
+    const id = codigoHN(101 + i)
+    const productor = codigo('PR-N', Math.ceil((i + 1) / 2))
+    const hectareas = entre(azar, 1, 4)
+    if (i === 3 || i === 8) return parcela(id, productor, { type: 'Point', coordinates: aPunto(centro) }, redondear(hectareas, 2))
+    return poligonal(id, productor, centro, hectareas)
+  })
+
+  // El beneficio: seis parcelas suyas, una que también manda la cooperativa
+  // (HN-0103, idéntica) y otra que volvió a medir (HN-0107, 15 m al este).
+  const centrosSur = Array.from({ length: 6 }, (_, i) => celda(1, i))
+  const sur = [
+    ...centrosSur.map((centro, i) => poligonal(codigoHN(201 + i), codigo('PR-S', i + 1), centro, entre(azar, 1, 4))),
+    structuredClone(norte[2]),
+    poligonal('HN-0107', norte[6].properties.productor, desplazar(centrosNorte[6], 15, 0), 2.5),
+  ]
+
+  // Los técnicos de campo: cuatro parcelas suyas (una exportada con 5
+  // decimales), una que se mete en HN-0204 del beneficio y otra parcela que
+  // trae el código HN-0202 del beneficio, lejos de ella.
+  const centro = [
+    ...Array.from({ length: 4 }, (_, i) => {
+      const f = poligonal(codigoHN(301 + i), codigo('PR-C', i + 1), celda(2, i), entre(azar, 1, 4))
+      return i === 2 ? { ...f, _decimales: 5 } : f
+    }),
+    poligonal('HN-0305', codigo('PR-C', 5), desplazar(centrosSur[3], 70, 0), 2),
+    poligonal('HN-0202', codigo('PR-C', 6), celda(2, 6), 2),
+  ]
+  return { norte, sur, centro }
+}
+
 /** Las parcelas válidas de valido.geojson y valido-puntos.csv, para armar otros formatos en las pruebas. */
 export const parcelasValidas = () => cuadricula(25, 5, crearAzar(SEMILLA + 1))
 export const puntosValidos = () => cuadricula(15, 5, crearAzar(SEMILLA + 2), true)
@@ -254,6 +300,7 @@ export const parcelasMezcladas = () => [
 
 export function generarTodo(dir = DIR_DATOS) {
   mkdirSync(join(dir, 'casos'), { recursive: true })
+  mkdirSync(join(dir, 'juntar'), { recursive: true })
   const escribir = (nombre, texto) => writeFileSync(join(dir, nombre), texto, 'utf8')
   const escribirBytes = (nombre, bytes) => writeFileSync(join(dir, nombre), bytes)
 
@@ -279,6 +326,12 @@ export function generarTodo(dir = DIR_DATOS) {
   // que el motor marca solo las parcelas con problemas.
   escribir('errores-mezclados.geojson', textoGeoJSON(parcelasMezcladas()))
   escribir('errores-mezclados.kml', textoKML(parcelasMezcladas()))
+
+  // Tres fuentes, cada una en su formato, para juntarlas.
+  const { norte, sur, centro } = parcelasParaJuntar()
+  escribir(join('juntar', 'cooperativa-norte.geojson'), textoGeoJSON(norte))
+  escribir(join('juntar', 'beneficio-sur.kml'), textoKML(sur, { titulo: 'Parcelas del beneficio' }))
+  escribirBytes(join('juntar', 'tecnicos-centro-shp.zip'), bytesZipShapefile('tecnicos-centro', archivosShapefile(centro)))
 
   return casos.map(({ numero, nombre, regla }) => ({ numero, nombre, regla }))
 }
