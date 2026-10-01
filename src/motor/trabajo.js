@@ -6,7 +6,8 @@
 
 import { bbox, centroid, pointOnFeature } from '@turf/turf'
 import { leerArchivos } from './archivos.js'
-import { analizar, ErrorDeArchivo } from './index.js'
+import { claveDeCelda, mascaraDePixeles, PIXELES_POR_CELDA, urlDeCelda } from './bosque.js'
+import { analizar, analizarConBosque, ErrorDeArchivo } from './index.js'
 import { HONDURAS } from './reglas.js'
 import { escribirCorregido, informeCSV } from './salidas.js'
 
@@ -20,6 +21,8 @@ export const MENSAJE_INTERNO =
  * @property {{error: number, advertencia: number, ok: number, sinDibujar: number}} conteo  Parcelas por peor severidad, para la leyenda.
  * @property {number[]} indices  Posición en la revisión de la parcela de cada resultado del informe, en el mismo orden.
  * @property {{mapa: Blob, centros: Blob, hallazgos: Blob, informe: Blob, corregido: Blob}} archivos  Capas del mapa y descargas.
+ * @property {{revisado: boolean, celdas?: number, parcelasConBosque?: number, error?: string}} [bosque]
+ *   Solo si se pidió revisar el bosque 2020: si se pudo y cuántas parcelas lo tocan.
  */
 
 const dentroDeHonduras = ([oeste, sur, este, norte]) =>
@@ -137,7 +140,21 @@ export function capaDeHallazgos(resultados) {
  * @returns {ResultadoDelTrabajo}
  */
 export function procesar(entrada, opciones = {}) {
-  const { parcelas, estados, indices, informe } = analizar(entrada, opciones)
+  return salidas(analizar(entrada, opciones), opciones)
+}
+
+/**
+ * Como `procesar`, y además compara las parcelas con el mapa de bosque 2020 de
+ * la UE (R15). `opciones.consultarCelda` trae cada celda del mapa; en el
+ * worker es la del WMS de la JRC (consultarCeldaDelWMS).
+ */
+export async function procesarConBosque(entrada, opciones = {}) {
+  const analisis = await analizarConBosque(entrada, opciones)
+  return { ...salidas(analisis, opciones), bosque: analisis.bosque }
+}
+
+// El mapa, las descargas y los conteos de una revisión.
+function salidas({ parcelas, estados, indices, informe }, opciones) {
   opciones.alAvanzar?.({ fase: 'salidas' })
   const varias = informe.fuentes.filter((f) => !f.error).length > 1
   const mapa = capaDelMapa(parcelas, estados, { conArchivo: varias })
@@ -154,6 +171,35 @@ export function procesar(entrada, opciones = {}) {
       corregido: new Blob([escribirCorregido(parcelas, { origen: varias })], { type: 'application/geo+json' }),
     },
   }
+}
+
+// ---------- Mapa de bosque 2020 (R15) ----------
+
+// Celdas ya pedidas al WMS mientras viva el worker: al sumar o quitar un
+// archivo, las zonas ya consultadas no se piden de nuevo.
+const celdasPedidas = new Map()
+
+async function pedirCelda(celda) {
+  const respuesta = await fetch(urlDeCelda(celda))
+  if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`)
+  if (!respuesta.headers.get('content-type')?.startsWith('image/png')) throw new Error('El servicio no devolvió una imagen.')
+  // Sin corregir colores ni premultiplicar: solo importa si el píxel es transparente.
+  const imagen = await createImageBitmap(await respuesta.blob(), { premultiplyAlpha: 'none', colorSpaceConversion: 'none' })
+  if (imagen.width !== PIXELES_POR_CELDA || imagen.height !== PIXELES_POR_CELDA) throw new Error('La imagen no tiene el tamaño pedido.')
+  const lienzo = new OffscreenCanvas(imagen.width, imagen.height).getContext('2d', { willReadFrequently: true })
+  lienzo.drawImage(imagen, 0, 0)
+  return mascaraDePixeles(lienzo.getImageData(0, 0, imagen.width, imagen.height).data, imagen.width, imagen.height)
+}
+
+/** Máscara de bosque de una celda, del WMS de la JRC. Si falla, lo intenta una vez más. */
+export function consultarCeldaDelWMS(celda) {
+  const clave = claveDeCelda(celda)
+  if (!celdasPedidas.has(clave)) {
+    const pedido = pedirCelda(celda).catch(() => pedirCelda(celda))
+    pedido.catch(() => celdasPedidas.delete(clave)) // una que falló se vuelve a pedir la próxima vez
+    celdasPedidas.set(clave, pedido)
+  }
+  return celdasPedidas.get(clave)
 }
 
 // Lo que mandó la página, listo para el motor. Con archivos (File, uno o
@@ -177,7 +223,11 @@ export async function atender({ id, entrada, formato, opciones = {} }, enviar) {
   try {
     const preparada = await prepararEntrada(entrada, formato)
     const alAvanzar = (avance) => enviar({ id, tipo: 'avance', avance })
-    const resultado = procesar(preparada.entrada, { ...opciones, formato: preparada.formato, alAvanzar })
+    const ajustes = { ...opciones, formato: preparada.formato, alAvanzar }
+    // El mapa de bosque se pide solo si la persona lo pidió (botón "Revisar bosque 2020").
+    const resultado = opciones.bosque
+      ? await procesarConBosque(preparada.entrada, { ...ajustes, consultarCelda: consultarCeldaDelWMS })
+      : procesar(preparada.entrada, ajustes)
     enviar({ id, tipo: 'listo', resultado })
   } catch (e) {
     const error =

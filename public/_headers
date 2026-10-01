@@ -3,15 +3,19 @@
 # para probar en local la misma política que se publica.
 #
 # La política de contenido (CSP) hace que el navegador bloquee cualquier
-# conexión que no sea a Deslinde o a OpenFreeMap: el archivo de parcelas no
-# puede salir del equipo aunque un error del código lo intentara.
+# conexión que no sea a Deslinde, a OpenFreeMap o al mapa de bosque de la UE:
+# el archivo de parcelas no puede salir del equipo aunque un error del código
+# lo intentara.
 #   connect-src: el ejemplo y las capas (blob:) salen de aquí; el mapa base,
-#                de tiles.openfreemap.org (estilo, teselas, fuentes e íconos).
-#   img-src:     los íconos de los controles de MapLibre son data: en su CSS.
+#                de tiles.openfreemap.org (estilo, teselas, fuentes e íconos);
+#                el bosque 2020, del WMS de la JRC (ies-ows.jrc.ec.europa.eu),
+#                solo cuando la persona aprieta "Revisar bosque 2020".
+#   img-src:     los íconos de los controles de MapLibre son data: en su CSS;
+#                las teselas del bosque 2020 son imágenes del WMS de la JRC.
 #   worker-src:  el motor y MapLibre corren en workers servidos desde aquí.
-# Referrer-Policy: OpenFreeMap no recibe la dirección de la página.
+# Referrer-Policy: ni OpenFreeMap ni la JRC reciben la dirección de la página.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self'; worker-src 'self'; connect-src 'self' blob: https://tiles.openfreemap.org; img-src 'self' data: blob:; style-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; worker-src 'self'; connect-src 'self' blob: https://tiles.openfreemap.org https://ies-ows.jrc.ec.europa.eu; img-src 'self' data: blob: https://ies-ows.jrc.ec.europa.eu; style-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'
   Referrer-Policy: no-referrer
   X-Content-Type-Options: nosniff
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()

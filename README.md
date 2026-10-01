@@ -24,7 +24,8 @@ La investigación, las decisiones y el plan están en la bóveda de Obsidian `Ag
 | 5. Rediseño | Hecho el 30-09-2026: tema oscuro con el mapa al centro, parcelas agrupadas de lejos y con su código de cerca, ficha al costado (92 pruebas pasan) |
 | 6a. KML y shapefile | Hecha el 01-10-2026: KML, KMZ y shapefile (en .zip o con sus archivos sueltos), comprobado contra pyshp (120 pruebas pasan) |
 | 6b. Juntar archivos de varias fuentes | Hecha el 01-10-2026: varios archivos se revisan juntos, R11 avisa de la misma parcela en dos archivos (por geometría o por código) y sale un solo archivo unido (147 pruebas pasan) |
-| 6c y 6d. Resto de la v1 | Siguen: revisión de bosque 2020 con evidencia e informe en PDF |
+| 6c. Bosque 2020 | Primera parte hecha el 01-10-2026: R15 compara cada parcela con el mapa de bosque 2020 de la UE (GFC2020 v4), con un botón, y lo dibuja en el mapa (166 pruebas pasan). Sigue la revisión con evidencia |
+| 6d. Informe en PDF | Sigue |
 
 ## Cómo correrlo
 
@@ -92,6 +93,41 @@ después de la primera revisión), y los trata como un solo conjunto:
 
 El código se compara sin espacios alrededor y sin distinguir mayúsculas (`hn-0101 ` y `HN-0101` son el mismo).
 Las parcelas sin código no cuentan para esta parte de R11.
+
+## Bosque 2020 (R15)
+
+Con el botón **"Revisar bosque 2020"**, Deslinde compara cada parcela con el mapa de bosque 2020 de la UE: el
+GFC2020 versión 4 del JRC, la referencia que usa la UE para el EUDR. Es una alerta para que una persona revise la
+parcela, nunca un dictamen: el mapa no distingue el café con sombra del bosque.
+
+- **De dónde sale**: del servicio WMS de la JRC (`ies-ows.jrc.ec.europa.eu`, capa `gfc2020_v4`), que deja leerse
+  desde otra página. Gratis, sin cuenta ni clave. Los datos se usan sin restricción, citando el DOI 10.2905/JRC.3KATEH8.
+- **Qué sale del equipo**: el worker pide recortes fijos de 0.05° (unos 5.5 km), uno por zona con parcelas, unos
+  pocos a la vez. La JRC recibe esas zonas, no el archivo, los códigos ni el contorno de las parcelas. Solo pasa al
+  apretar el botón; al cambiar los archivos hay que volver a pedirlo.
+- **Píxel a píxel**: el mapa original tiene píxeles de 1/12000 de grado (unos 9 m) con origen en grados enteros, así
+  que cada recorte se pide de 600 × 600 píxeles y cada píxel de la imagen es uno del mapa. El PNG trae dos colores:
+  verde donde había bosque y transparente en lo demás.
+- **El cálculo**: la parcela se recorre fila por fila de píxeles (con sus huecos y partes) y se cuentan los píxeles
+  cuyo centro cae adentro y los que tienen bosque. R15 dice qué porcentaje y cuántas hectáreas caen en bosque, y marca
+  el punto con bosque más cercano al centro de esa mancha. Un punto se mira en su píxel. Una parcela que se cruza
+  consigo misma (R6) no se revisa, como en R12. Cualquier píxel de bosque da la alerta **[hipótesis]**: puede que
+  convenga un mínimo, como los 10 m² de R10.
+- **En el mapa**: la capa de bosque se dibuja debajo de las parcelas, con su interruptor y su lugar en la leyenda.
+- **Si el servicio no responde**: se dice, y la revisión de geolocalización sigue valiendo.
+
+Ojo con la versión: el 01-10-2026, el archivo que el servidor de descargas de la JRC llama "V4" en su carpeta
+`LATEST` era en realidad la versión 3 (mismo tamaño que la v3 del servicio de descarga, y 100 % de píxeles iguales
+a la capa `gfc2020_v3` del WMS). Deslinde usa la capa `gfc2020_v4` del WMS.
+
+```js
+import { analizarConBosque } from './src/motor/index.js'
+
+const { informe, bosque } = await analizarConBosque(texto, {
+  consultarCelda: async ({ x, y }) => mascara, // Uint8Array de 600 × 600: 1 = bosque
+})
+// bosque: { revisado: true, celdas, parcelasConBosque } o { revisado: false, error }
+```
 
 ## Uso del motor
 
@@ -191,7 +227,10 @@ acciones. Sin degradados, sin etiquetas tipo píldora y sin títulos en mayúscu
 - **Hallazgos** en filas, con filtro segmentado por severidad (radios, se usa con las flechas del teclado), por regla y,
   al juntar varios archivos, por archivo. Cada hallazgo lleva el ícono de su severidad, el código de la parcela (y su
   archivo, si hay varios) y el nombre de la regla, no solo su número.
-- **Ayuda plegable**: qué revisa cada regla, qué corrige el archivo corregido y qué formato acepta, con el archivo de ejemplo para descargar.
+- **Revisar bosque 2020**: debajo de las cifras, una acción que suma R15 a la revisión. Al terminar dice cuántas
+  parcelas caen en bosque y recuerda que es una alerta, no un dictamen.
+- **Ayuda plegable**: qué revisa cada regla, qué corrige el archivo corregido y qué formato acepta, con el archivo de
+  ejemplo para descargar, y qué ven OpenFreeMap y la UE.
 - **Celular**: resultado, mapa, lista y ayuda, uno debajo del otro, para que el mapa se vea apenas termina la revisión.
   La ficha de la parcela sube desde abajo y tapa la mitad del mapa como mucho.
 - **Accesibilidad**: al terminar la revisión o al fallar, un aviso para lectores de pantalla dice el veredicto
@@ -218,10 +257,11 @@ acciones. Sin degradados, sin etiquetas tipo píldora y sin títulos en mayúscu
   porque la política de seguridad las bloquearía (`font-src 'self'`).
 
 - **Política de contenido (CSP)** en `public/_headers`, que Cloudflare Pages aplica a todo el sitio:
-  el navegador solo deja conectar con Deslinde y con `tiles.openfreemap.org`. Aunque un error del código
-  lo intentara, el archivo de parcelas no puede salir del equipo. `vite preview` sirve las mismas cabeceras
+  el navegador solo deja conectar con Deslinde, con `tiles.openfreemap.org` y con el WMS del mapa de bosque
+  de la JRC (`ies-ows.jrc.ec.europa.eu`). Aunque un error del código lo intentara, el archivo de parcelas no
+  puede salir del equipo. `vite preview` sirve las mismas cabeceras
   (`vite.config.js`), así que se prueba en local la política que se publica.
-- `Referrer-Policy: no-referrer`: OpenFreeMap no recibe la dirección de la página.
+- `Referrer-Policy: no-referrer`: ni OpenFreeMap ni la JRC reciben la dirección de la página.
 
 Para publicar en Cloudflare Pages: comando de build `npm run build`, carpeta de salida `dist`.
 La versión de Node por defecto de Pages (22.16) cumple lo que piden Vite y Vitest.
@@ -253,6 +293,8 @@ un verde apenas insinuado para que se distingan bosques, ríos y caminos y mande
   Las letras de las etiquetas (Noto Sans Bold, en `public/glyphs`) se sirven desde el propio sitio, así que los
   códigos se ven igual. La preferencia se recuerda en el navegador. Si OpenFreeMap no responde, las parcelas se
   ven sobre fondo liso.
+- **Bosque 2020**: después de "Revisar bosque 2020", el mapa dibuja en verde, debajo de las parcelas, dónde había
+  bosque según el mapa de la UE (teselas del WMS de la JRC, desde el zoom 10). Tiene su interruptor junto al del mapa base.
 - **Auditoría de privacidad**: `#mapa[data-peticiones-externas]` cuenta las peticiones del mapa que salen del equipo.
   Con el mapa base apagado no sube al mover ni acercar el mapa.
 
@@ -294,6 +336,7 @@ La parte sin DOM (filtros, conteo por regla, tramo) está en `src/lista/datos.js
 | R10 | Solapes entre parcelas de más de 10 m². El aviso va en las dos parcelas y cada una nombra a la otra | Advertencia |
 | R11 | Parcelas duplicadas: la misma geometría, o el mismo código con otra geometría, también entre archivos. Cada copia lleva un aviso que nombra a las demás | Advertencia |
 | R12 | Área declarada contra área calculada | Advertencia |
+| R15 | Con "Revisar bosque 2020": la parcela cae en bosque de 2020 según el mapa de la UE (GFC2020 v4). Alerta para revisar, no dictamen | Advertencia |
 
 ## Datos sintéticos
 
@@ -325,6 +368,7 @@ que también salgan iguales en cada corrida.
 | Apertura de KMZ y `.zip` | `fflate` | 0.8.3 | MIT |
 | Lectura de shapefile | Propia (`src/motor/shapefile.js`), según la especificación de ESRI de 1998 | — | — |
 | Mapa base (servicio, sin paquete) | OpenFreeMap, estilo `dark` | — | Datos © OpenStreetMap (ODbL), OpenMapTiles |
+| Mapa de bosque 2020 (servicio, sin paquete) | GFC2020 v4 del JRC, por su WMS | — | Sin restricción de uso, citando el DOI 10.2905/JRC.3KATEH8 |
 | Letras de las etiquetas del mapa (sin paquete) | Noto Sans Bold, glifos de OpenFreeMap en `public/glyphs` | — | OFL-1.1 (`public/glyphs/LICENSE-OFL.txt`) |
 | Tipografía de la marca y el texto | `@fontsource-variable/manrope` | 5.3.0 | OFL-1.1 |
 | Tipografía de los códigos | `@fontsource/ibm-plex-mono` | 5.3.0 | OFL-1.1 |

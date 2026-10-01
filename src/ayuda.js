@@ -16,6 +16,7 @@ const REGLAS = [
   ['R10', 'Advertencia', 'Dos parcelas no deben solaparse. El aviso aparece en las dos.'],
   ['R11', 'Advertencia', 'La misma parcela no debe venir dos veces: ni con la misma geometría ni con el mismo código. El aviso aparece en cada copia, también entre archivos distintos.'],
   ['R12', 'Advertencia', 'El área declarada no debe diferir en más de 10 % del área que se calcula con el borde.'],
+  ['R15', 'Advertencia', 'Con «Revisar bosque 2020»: la parcela no debería caer en bosque de 2020 según el mapa de la UE (GFC2020 v4, a 10 m). El mapa no distingue el café con sombra del bosque: el aviso pide revisarla, no dice que haya deforestación.'],
 ]
 
 const CLASE = { Error: 'error', Advertencia: 'advertencia' }
@@ -29,7 +30,7 @@ export const AYUDA_REGLAS = `
     ).join('')}
   </dl>
   <p class="nota">El archivo corregido solo arregla lo que no necesita criterio: invierte los pares al revés, cierra los bordes y quita los vértices repetidos seguidos. Lo demás hay que corregirlo en el archivo de origen.</p>
-  <p class="nota">Deslinde no revisa deforestación ni certifica el cumplimiento: solo que la geolocalización esté bien armada.</p>
+  <p class="nota">Deslinde no dictamina deforestación ni certifica el cumplimiento. Revisa que la geolocalización esté bien armada y, si lo pide, qué parcelas caen en bosque de 2020 según el mapa de la UE, para que una persona las revise.</p>
 `
 
 export const AYUDA_FORMATO = `

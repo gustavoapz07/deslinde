@@ -18,6 +18,7 @@ export const NOMBRES_DE_REGLA = {
   R10: 'Solape con otra parcela',
   R11: 'Parcela duplicada',
   R12: 'Área declarada distinta',
+  R15: 'Bosque en 2020',
 }
 
 /**

@@ -664,6 +664,70 @@ code {
   background: color-mix(in srgb, var(--ok) 35%, transparent);
 }
 
+/* El verde del mapa de bosque de la UE, con la transparencia de su capa. */
+.muestra.bosque {
+  border: 0;
+  background: rgb(77 146 33 / 0.6);
+}
+
+/* El paso del bosque 2020: una acción como "Sumar otro archivo" y, después, lo que dio. */
+.bosque {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--linea);
+}
+
+.pedir-bosque {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pedir-bosque .archivo-icono {
+  border: 1px dashed var(--linea-fuerte);
+  background: transparent;
+}
+
+.pedir-bosque strong {
+  color: var(--acento);
+  font-size: 14px;
+}
+
+.pedir-bosque:hover strong {
+  color: var(--acento-claro);
+}
+
+.pedir-bosque:hover .archivo-icono {
+  border-color: var(--acento);
+}
+
+.bosque-estado {
+  font-size: 13.5px;
+  color: var(--texto-2);
+}
+
+/* Recibe el foco al terminar, para que el lector de pantalla lo lea; no es un control. */
+.bosque-estado:focus {
+  outline: none;
+}
+
+.pedir-bosque:not([hidden]) + .bosque-estado {
+  margin-top: 12px;
+}
+
+.bosque-estado.error {
+  color: var(--error-texto);
+}
+
 /* Las dos descargas, una al lado de la otra. */
 .descargas {
   display: grid;
@@ -1121,8 +1185,8 @@ li:has(> .hallazgo.activa) + li .hallazgo {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 6px;
-  max-width: 280px;
+  gap: 4px 14px;
+  max-width: 360px;
   padding: 6px 6px 6px 12px;
   border-radius: 12px;
 }

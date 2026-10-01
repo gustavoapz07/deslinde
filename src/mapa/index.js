@@ -101,6 +101,8 @@ export function crearMapa(contenedor, { conFondo = true, ficha, globo, controles
   /** @type {import('../lista/datos.js').Hallazgo[]} */
   let hallazgos = []
   let conArchivo = false // se juntaron varios archivos: la ficha dice de cuál es cada parcela
+  let conBosque = false // la revisión trae el bosque 2020: se puede dibujar su capa
+  let bosqueVisible = true
   let fondoPedido = false
   let seleccion = null
   let encima = null
@@ -131,7 +133,8 @@ export function crearMapa(contenedor, { conFondo = true, ficha, globo, controles
   mapa.addControl(new NavigationControl({ showCompass: false }), 'bottom-right')
   mapa.addControl(new ScaleControl({ unit: 'metric' }), 'bottom-right')
 
-  const dibujar = () => mapa.setStyle(construirEstilo({ ...estado, base: fondoPedido ? estado.base : null }))
+  const dibujar = () =>
+    mapa.setStyle(construirEstilo({ ...estado, base: fondoPedido ? estado.base : null, bosque: conBosque && bosqueVisible }))
 
   // Cambia solo los datos. Si el estilo todavía está cargando y las fuentes no
   // existen, rehace el estilo: `estado` ya trae los datos nuevos.
@@ -274,11 +277,12 @@ export function crearMapa(contenedor, { conFondo = true, ficha, globo, controles
 
     /**
      * Muestra el resultado de una revisión.
-     * @param {{urlCapa: string, urlCentros: string, urlHallazgos: string, limites: number[]|null, hallazgos: import('../lista/datos.js').Hallazgo[], varias?: boolean}} datos
+     * @param {{urlCapa: string, urlCentros: string, urlHallazgos: string, limites: number[]|null, hallazgos: import('../lista/datos.js').Hallazgo[], varias?: boolean, bosque?: boolean}} datos
      *   Las URLs son de los Blob que arma el worker: MapLibre las lee en su propio worker.
-     *   `varias`: se juntaron varios archivos.
+     *   `varias`: se juntaron varios archivos. `bosque`: se revisó el bosque 2020, y
+     *   su capa se dibuja debajo de las parcelas (la persona lo pidió).
      */
-    mostrar({ urlCapa, urlCentros, urlHallazgos, limites, hallazgos: nuevos, varias = false }) {
+    mostrar({ urlCapa, urlCentros, urlHallazgos, limites, hallazgos: nuevos, varias = false, bosque = false }) {
       cerrarFicha({ avisar: false })
       seleccion = null
       encima = null
@@ -287,7 +291,11 @@ export function crearMapa(contenedor, { conFondo = true, ficha, globo, controles
       estado.parcelas = urlCapa
       estado.centros = urlCentros
       estado.hallazgos = urlHallazgos
-      ponerDatos()
+      // Agregar o quitar la capa de bosque cambia el estilo; si no, basta cambiar los datos.
+      if (conBosque !== bosque) {
+        conBosque = bosque
+        dibujar()
+      } else ponerDatos()
       if (limites) mapa.fitBounds(limites, { padding: margenes(), maxZoom: 16, duration: 600 })
     },
 
@@ -315,7 +323,18 @@ export function crearMapa(contenedor, { conFondo = true, ficha, globo, controles
       estado.parcelas = undefined
       estado.centros = undefined
       estado.hallazgos = undefined
-      ponerDatos()
+      if (conBosque) {
+        conBosque = false
+        dibujar()
+      } else ponerDatos()
+    },
+
+    /** Muestra u oculta la capa de bosque 2020 (si la revisión la trae). */
+    ponerBosque(visible) {
+      bosqueVisible = visible
+      if (!conBosque) return
+      dibujar()
+      if (seleccion !== null) marcar('seleccionada', null, seleccion) // al rehacer el estilo se pierden las marcas
     },
 
     /**

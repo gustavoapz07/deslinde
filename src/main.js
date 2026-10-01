@@ -101,6 +101,13 @@ document.querySelector('#app').innerHTML = `
             </div>
             <p class="nota" id="sin-dibujar" hidden></p>
           </div>
+          <div class="bosque">
+            <button type="button" class="pedir-bosque" id="revisar-bosque">
+              <span class="archivo-icono">${ICONOS.arbol}</span>
+              <span class="archivo-datos"><strong>Revisar bosque 2020</strong><span>Compara cada parcela con el mapa de bosque de la UE. La UE recibe la zona, no el archivo.</span></span>
+            </button>
+            <p class="bosque-estado" id="bosque-estado" tabindex="-1" hidden></p>
+          </div>
           <div class="descargas">
             <a id="bajar-informe" class="descarga" title="Una fila por hallazgo. Se abre en Excel.">${ICONOS.descargar}<span>Informe <small>CSV</small></span></a>
             <a id="bajar-corregido" class="descarga">${ICONOS.descargar}<span><span id="bajar-corregido-nombre">Archivo corregido</span> <small>GeoJSON</small></span></a>
@@ -122,15 +129,16 @@ document.querySelector('#app').innerHTML = `
             </div>
           </details>
           <details class="ayuda" id="privacidad">
-            <summary>Privacidad y mapa base${ICONOS.flecha}</summary>
+            <summary>Privacidad y mapas${ICONOS.flecha}</summary>
             <div class="ayuda-cuerpo">
               <p>El archivo se lee y se revisa en este equipo. Deslinde no tiene un servidor que lo reciba, y el navegador tiene prohibido enviarlo a otro sitio.</p>
               <p>Con el mapa base encendido, OpenFreeMap recibe qué zona del mapa se está mirando, no el archivo. Si trabaja con parcelas reales y no quiere que se sepa dónde están, apague el interruptor «Mapa base» del mapa: las parcelas se ven igual sobre fondo liso.</p>
+              <p>«Revisar bosque 2020» le pide al servicio de la UE (el JRC) el mapa de bosque de recortes de unos 5 km alrededor de las parcelas, y la capa de bosque del mapa pide los de la zona que se mira. La UE recibe esas zonas, no el archivo ni los códigos. Solo pasa si aprieta el botón.</p>
             </div>
           </details>
         </div>
         <p class="aviso">
-          Herramienta de apoyo para preparar datos: no certifica el cumplimiento del EUDR ni revisa deforestación.
+          Herramienta de apoyo para preparar datos: no certifica el cumplimiento del EUDR ni dictamina deforestación.
           La responsabilidad sigue siendo del operador.
         </p>
         <p class="aviso">
@@ -148,13 +156,19 @@ document.querySelector('#app').innerHTML = `
         <span class="interruptor-pista" aria-hidden="true"></span>
         <span>Mapa base</span>
       </label>
-      <a href="#privacidad" class="control-ayuda" id="ver-privacidad" title="Qué ve OpenFreeMap">${ICONOS.info}<span class="oculto">Qué ve OpenFreeMap</span></a>
+      <label class="interruptor" id="interruptor-bosque" hidden>
+        <input id="capa-bosque" type="checkbox" role="switch" checked />
+        <span class="interruptor-pista" aria-hidden="true"></span>
+        <span>Bosque 2020</span>
+      </label>
+      <a href="#privacidad" class="control-ayuda" id="ver-privacidad" title="Qué ven OpenFreeMap y la UE">${ICONOS.info}<span class="oculto">Qué ven OpenFreeMap y la UE</span></a>
       <p class="aviso-error" id="fondo-error" hidden>No se pudo cargar el mapa base (¿sin internet?). Las parcelas se ven igual sobre fondo liso.</p>
     </div>
     <ul class="leyenda" id="leyenda" aria-label="Qué muestra el mapa">
       ${SEVERIDADES.map((s) => `<li>${muestra(s)}${NOMBRES[s]}</li>`).join('')}
       <li title="Varias parcelas juntas, con su cantidad. Del color de la peor."><span class="muestra-grupo" aria-hidden="true">12</span>Grupo de parcelas</li>
       <li title="Dónde está el problema dentro de la parcela, con el número de su regla."><span class="muestra-problema" aria-hidden="true"></span>Dónde falla</li>
+      <li id="leyenda-bosque" title="Donde había bosque en 2020 según el mapa de la UE (GFC2020 v4). No distingue el café con sombra." hidden><span class="muestra bosque" aria-hidden="true"></span>Bosque 2020 (UE)</li>
     </ul>
     <section id="ficha" class="ficha" aria-label="Ficha de la parcela" hidden></section>
     <div id="globo" class="globo" aria-hidden="true" hidden></div>
@@ -238,6 +252,7 @@ const mapa = {
   enfocar: (hallazgo) => mapaListo.then((m) => m.enfocar(hallazgo), () => {}),
   alElegir: (funcion) => mapaListo.then((m) => m.alElegir(funcion), () => {}),
   ponerFondo: (visible) => mapaListo.then((m) => m.ponerFondo(visible), () => !visible), // sin mapa, apagar no falla
+  ponerBosque: (visible) => mapaListo.then((m) => m.ponerBosque(visible), () => {}),
 }
 const lista = crearLista($('#lista'), {
   alElegir: (hallazgo) => {
@@ -269,6 +284,12 @@ $('#fondo').addEventListener('change', async (evento) => {
   }
 })
 
+// La capa de bosque 2020 se puede apagar en el mapa; R15 sigue en la lista.
+$('#capa-bosque').addEventListener('change', (evento) => {
+  mapa.ponerBosque(evento.target.checked)
+  $('#leyenda-bosque').hidden = !evento.target.checked
+})
+
 // ---------- Estado y avance ----------
 
 function mostrarEstado(texto, { error = false, avance } = {}) {
@@ -289,6 +310,7 @@ const FASES = {
   leyendo: (a, cuantos) => [leyendo(cuantos), null],
   revisando: (a) => [`Revisando parcelas: ${numero.format(a.hechas)} de ${numero.format(a.total)}`, a],
   comparando: () => ['Comparando las parcelas entre sí…', null],
+  bosque: (a) => [`Consultando el mapa de bosque de la UE: ${numero.format(a.hechas)} de ${plural(a.total, 'zona', 'zonas')}`, a],
   salidas: () => ['Preparando el mapa y las descargas…', null],
 }
 
@@ -306,7 +328,7 @@ function enlazar(enlace, blob, nombre) {
 }
 
 // Qué hacer ahora, en una frase. Cuenta parcelas, no hallazgos: es lo que hay que ir a corregir.
-function veredicto(conteo) {
+function veredicto(conteo, conBosque) {
   if (conteo.error > 0) {
     return {
       clase: 'error',
@@ -319,7 +341,40 @@ function veredicto(conteo) {
       texto: `Ninguna parcela tiene errores. ${plural(conteo.advertencia, 'tiene advertencias', 'tienen advertencias')}: ${conteo.advertencia === 1 ? 'revísela' : 'revíselas'} antes de enviar.`,
     }
   }
-  return { clase: 'ok', texto: 'Ninguna parcela tiene hallazgos en las 12 reglas revisadas.' }
+  return {
+    clase: 'ok',
+    texto: conBosque
+      ? 'Ninguna parcela tiene hallazgos en las 12 reglas ni cae en bosque de 2020.'
+      : 'Ninguna parcela tiene hallazgos en las 12 reglas revisadas.',
+  }
+}
+
+// Qué se revisó y qué no, debajo del veredicto.
+function alcance({ errores, advertencias }, bosque) {
+  const cuantos = `${plural(errores, 'error', 'errores')} y ${plural(advertencias, 'advertencia', 'advertencias')}`
+  if (bosque?.revisado) {
+    return `${cuantos} en 12 reglas de geolocalización y en el mapa de bosque 2020 de la UE, que no distingue el café con sombra.`
+  }
+  return `${cuantos} en 12 reglas de geolocalización. No revisa deforestación.`
+}
+
+// El paso del bosque 2020: el botón para pedirlo, o lo que dio. Si el servicio
+// de la UE no respondió, el botón queda para intentarlo de nuevo.
+function mostrarBosque(bosque) {
+  const estado = $('#bosque-estado')
+  $('#revisar-bosque').hidden = Boolean(bosque?.revisado)
+  estado.hidden = !bosque
+  estado.classList.toggle('error', Boolean(bosque?.error))
+  if (bosque?.error) estado.textContent = bosque.error
+  else if (bosque?.revisado) {
+    const cuantas = bosque.parcelasConBosque
+    estado.textContent =
+      cuantas === 0
+        ? 'Bosque 2020 revisado con el mapa de la UE (GFC2020 v4): ninguna parcela cae en bosque.'
+        : `Bosque 2020 revisado con el mapa de la UE (GFC2020 v4): ${plural(cuantas, 'parcela cae', 'parcelas caen')} en bosque, del todo o en parte. Es una alerta para revisar, no un dictamen: el mapa no distingue el café con sombra.`
+  }
+  $('#interruptor-bosque').hidden = !bosque?.revisado
+  $('#leyenda-bosque').hidden = !bosque?.revisado || !$('#capa-bosque').checked
 }
 
 // Los archivos de la revisión a la vista (File), en el orden en que se mandaron
@@ -371,7 +426,7 @@ function mostrarFuentes(fuentes, revisado) {
   $('#archivos').hidden = false
 }
 
-function mostrarResultado(enviados, { informe, limites, conteo, indices, archivos }, segundos) {
+function mostrarResultado(enviados, { informe, limites, conteo, indices, archivos, bosque }, segundos) {
   // Las URLs del archivo anterior se sueltan recién ahora, cuando el mapa ya no las usa.
   const viejas = urls
   urls = []
@@ -385,14 +440,12 @@ function mostrarResultado(enviados, { informe, limites, conteo, indices, archivo
   // Con varios archivos legibles, las descargas son de todos juntos.
   const legibles = informe.fuentes.filter((f) => !f.error)
   const varias = legibles.length > 1
-  const v = veredicto(conteo)
+  const v = veredicto(conteo, bosque?.revisado)
   $('#veredicto').className = `veredicto ${v.clase}`
   $('#veredicto-icono').innerHTML = ICONOS[v.clase]
   $('#veredicto-texto').textContent = v.texto
-  const { errores, advertencias } = informe.resumen
-  $('#alcance').textContent =
-    `${plural(errores, 'error', 'errores')} y ${plural(advertencias, 'advertencia', 'advertencias')} en 12 reglas de geolocalización. ` +
-    'No revisa deforestación.'
+  $('#alcance').textContent = alcance(informe.resumen, bosque)
+  mostrarBosque(bosque)
   for (const severidad of SEVERIDADES) {
     $(`#cuenta-${severidad}`).textContent = numero.format(conteo[severidad])
     // Cada tramo de la barra ocupa lo que su grupo de parcelas.
@@ -411,7 +464,7 @@ function mostrarResultado(enviados, { informe, limites, conteo, indices, archivo
     ? `Las parcelas de los ${legibles.length} archivos en uno solo, con las tres correcciones seguras y el archivo de origen de cada una.`
     : 'Con las tres correcciones seguras. Lo demás se corrige en el archivo de origen.'
   $('#resultado').hidden = false
-  anunciar(`Revisión terminada. ${v.texto}`)
+  anunciar(`Revisión terminada. ${v.texto}${bosque ? ` ${$('#bosque-estado').textContent}` : ''}`)
 
   const hallazgos = unirIndices(informe.resultados, indices)
   lista.mostrar(hallazgos, { archivos: varias ? legibles.map((f) => f.nombre) : [] })
@@ -424,6 +477,7 @@ function mostrarResultado(enviados, { informe, limites, conteo, indices, archivo
     limites,
     hallazgos,
     varias,
+    bosque: Boolean(bosque?.revisado),
   })
   // MapLibre lee las capas en su worker; se deja un margen antes de soltar las URLs viejas.
   setTimeout(() => viejas.forEach((url) => URL.revokeObjectURL(url)), 5000)
@@ -444,15 +498,18 @@ function mostrarFallo(mensaje) {
 
 /**
  * @param {File[]} archivos  Uno, los de un shapefile o los de varias fuentes: se revisan juntos.
- * @param {{alTerminar?: () => void}} [ajustes]
+ * @param {{bosque?: boolean, alTerminar?: () => void}} [ajustes]
+ *   `bosque`: también con el mapa de bosque 2020 de la UE. Solo cuando la
+ *   persona aprieta "Revisar bosque 2020"; al cambiar los archivos, se vuelve a pedir.
  */
-async function revisar(archivos, { alTerminar } = {}) {
+async function revisar(archivos, { bosque = false, alTerminar } = {}) {
   $('#archivos').hidden = true
   $('#resultado').hidden = true
   mostrarEstado(leyendo(archivos.length), { avance: null })
   const inicio = performance.now()
   try {
     const resultado = await validador.validar(archivos, {
+      opciones: { bosque },
       alAvanzar: (avance) => {
         const [texto, cifra] = FASES[avance.fase](avance, archivos.length)
         mostrarEstado(texto, { avance: cifra })
@@ -472,6 +529,9 @@ $('#archivo').addEventListener('change', (evento) => {
   evento.target.value = '' // permite volver a elegir el mismo archivo después de corregirlo
   if (archivos.length > 0) revisar(archivos)
 })
+
+// Las mismas parcelas, ahora también con el mapa de bosque 2020 de la UE.
+$('#revisar-bosque').addEventListener('click', () => revisar(actuales, { bosque: true, alTerminar: () => $('#bosque-estado').focus() }))
 
 // Sumar archivos a la revisión a la vista. Uno que ya está (mismo nombre,
 // tamaño y fecha) no se suma de nuevo: sus parcelas saldrían todas repetidas.

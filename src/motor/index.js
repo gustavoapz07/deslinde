@@ -1,8 +1,10 @@
 // Motor de validación de Deslinde: lee el archivo, revisa cada parcela con las
 // reglas R1 a R12 y arma el informe. Con varios archivos (fuentes), revisa sus
 // parcelas juntas: así salen los solapes y las parcelas repetidas entre uno y
-// otro. No usa servidor: todo corre donde se llame.
+// otro. No usa servidor: todo corre donde se llame. R15 (bosque 2020) va
+// aparte, en analizarConBosque, porque consulta el mapa de la UE.
 
+import { celdasParaParcelas, consultarCeldas, ERROR_BOSQUE, revisarBosque } from './bosque.js'
 import { leer } from './lector.js'
 import {
   reglaR1,
@@ -26,7 +28,7 @@ export { escribirCorregido, geojsonCorregido, informeCSV } from './salidas.js'
  * @typedef {Object} Resultado
  * @property {string} parcela       Código de la parcela (propiedad `id` del archivo).
  * @property {string} [archivo]     Nombre del archivo de la parcela (no lo hay si se revisó un texto).
- * @property {string} regla         R1 a R12, ver la nota "Reglas de validación de geodatos".
+ * @property {string} regla         R1 a R12, y R15 si se pidió el bosque 2020. Ver la nota "Reglas de validación de geodatos".
  * @property {'error'|'advertencia'} severidad
  * @property {[number, number]|null} ubicacion  [longitud, latitud] donde mostrar el problema en el mapa.
  * @property {string} mensaje       Qué pasa, en español simple.
@@ -101,17 +103,9 @@ function juntar(fuentes, formato) {
   return parcelas
 }
 
-/**
- * Lee y revisa un archivo, o varios juntos. Devuelve también las parcelas ya
- * corregidas (pares invertidos, anillos cerrados, vértices repetidos quitados)
- * para escribir el GeoJSON corregido, y el estado de cada parcela para el mapa.
- * `opciones.alAvanzar(avance)` recibe el avance, para mostrarlo en pantalla.
- * @param {string | {formato?: string, parcelas: import('./lector.js').Parcela[]} | import('./archivos.js').Fuente[]} entrada
- *   El texto del archivo; las parcelas ya leídas (el shapefile, que es binario,
- *   lo lee archivos.js); o las fuentes que devuelve leerArchivos.
- */
-export function analizar(entrada, opciones = {}) {
-  const o = { ...OPCIONES_POR_DEFECTO, ...opciones }
+// Primer paso: lee y revisa cada parcela con R1 a R12. Devuelve los hallazgos
+// sin ordenar, para poder sumarles R15 antes de armar el informe.
+function revisarTodo(entrada, o) {
   const avisar = o.alAvanzar ?? (() => {})
   avisar({ fase: 'leyendo' })
   const fuentes = fuentesDe(entrada, o.formato)
@@ -140,7 +134,11 @@ export function analizar(entrada, opciones = {}) {
     ...reglaR11Codigos(parcelas, r11.duplicadas, dibujables),
     ...reglaR10(comparables, r11.duplicadas, o.solapeMinimoM2),
   )
+  return { fuentes, parcelas, encontrados, dibujables, cruzadas }
+}
 
+// Segundo paso: ordena los hallazgos y arma el informe y el estado de cada parcela.
+function armar({ fuentes, parcelas, encontrados, dibujables, cruzadas }) {
   const numeroDeRegla = (r) => Number(r.regla.slice(1))
   encontrados.sort(
     (a, b) =>
@@ -185,6 +183,46 @@ export function analizar(entrada, opciones = {}) {
       resultados,
       resumen: { errores, advertencias: resultados.length - errores, parcelasConErrores: conError.size },
     },
+  }
+}
+
+/**
+ * Lee y revisa un archivo, o varios juntos. Devuelve también las parcelas ya
+ * corregidas (pares invertidos, anillos cerrados, vértices repetidos quitados)
+ * para escribir el GeoJSON corregido, y el estado de cada parcela para el mapa.
+ * `opciones.alAvanzar(avance)` recibe el avance, para mostrarlo en pantalla.
+ * @param {string | {formato?: string, parcelas: import('./lector.js').Parcela[]} | import('./archivos.js').Fuente[]} entrada
+ *   El texto del archivo; las parcelas ya leídas (el shapefile, que es binario,
+ *   lo lee archivos.js); o las fuentes que devuelve leerArchivos.
+ */
+export function analizar(entrada, opciones = {}) {
+  return armar(revisarTodo(entrada, { ...OPCIONES_POR_DEFECTO, ...opciones }))
+}
+
+/**
+ * Como `analizar`, y además compara cada parcela con el mapa de bosque 2020 de
+ * la UE (R15, ver bosque.js). Es aparte porque pide el mapa a un servicio de
+ * la UE: solo corre cuando la persona lo pide.
+ * `opciones.consultarCelda(celda)` trae la máscara de bosque de una celda
+ * (en el worker, del WMS de la JRC). Si el servicio falla, el resultado es el
+ * de `analizar`, con `bosque.error`.
+ * @returns {Promise<ReturnType<typeof analizar> & {bosque: {revisado: boolean, celdas?: number, parcelasConBosque?: number, error?: string}}>}
+ */
+export async function analizarConBosque(entrada, opciones = {}) {
+  const o = { ...OPCIONES_POR_DEFECTO, ...opciones }
+  const revision = revisarTodo(entrada, o)
+  const previo = armar(revision)
+  const celdas = celdasParaParcelas(revision.parcelas, previo.estados)
+  let mascaras
+  try {
+    mascaras = await consultarCeldas(celdas, o.consultarCelda, { alAvanzar: o.alAvanzar })
+  } catch (e) {
+    return { ...previo, bosque: { revisado: false, error: ERROR_BOSQUE, detalle: String(e?.message ?? e) } }
+  }
+  const r15 = revisarBosque(revision.parcelas, previo.estados, mascaras)
+  return {
+    ...armar({ ...revision, encontrados: [...revision.encontrados, ...r15] }),
+    bosque: { revisado: true, celdas: celdas.length, parcelasConBosque: new Set(r15.map((h) => h.parcela.indice)).size },
   }
 }
 

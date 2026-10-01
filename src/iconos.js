@@ -10,6 +10,7 @@ export const ICONOS = {
   subir: icono('<path d="M12 15V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M4 14.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3.5"/>'),
   archivo: icono('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h4"/>'),
   sumar: icono('<path d="M12 5v14"/><path d="M5 12h14"/>'),
+  arbol: icono('<path d="M12 21v-5"/><path d="M12 3 6.5 10.5H9L5 16h14l-4-5.5h2.5z"/>'),
   escudo: icono('<path d="M12 3 5 6v5.2c0 4.3 2.9 8 7 9.8 4.1-1.8 7-5.5 7-9.8V6z"/><path d="m9.2 12.2 2 2 3.8-4"/>'),
   descargar: icono('<path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M5 20h14"/>'),
   error: icono('<path d="M8.3 3h7.4L21 8.3v7.4L15.7 21H8.3L3 15.7V8.3z"/><path d="M12 7.8v5"/><path d="M12 16.3h.01"/>', 'icono-error'),

@@ -7,6 +7,7 @@
 // código de la parcela y, en cada problema, un punto con el número de su regla.
 
 import { peorSeveridad } from '../lista/datos.js'
+import { CAPA_WMS, WMS_BOSQUE } from '../motor/bosque.js'
 
 export const ESTILO_BASE = 'https://tiles.openfreemap.org/styles/dark'
 
@@ -255,6 +256,30 @@ export const CAPAS = [
 export const VACIA = { type: 'FeatureCollection', features: [] }
 const FONDO_LISO = { id: 'fondo-liso', type: 'background', paint: { 'background-color': PALETA_MAPA.fondo } }
 
+// Bosque 2020 de la UE (GFC2020 v4), en teselas del WMS de la JRC: verde donde
+// había bosque, transparente en lo demás. Solo después de "Revisar bosque
+// 2020", y debajo de las parcelas. Desde el zoom 10, para no pedirle al
+// servicio imágenes de medio país.
+export const FUENTE_BOSQUE = 'bosque'
+const TESELA_BOSQUE =
+  `${WMS_BOSQUE}?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=${CAPA_WMS}&STYLES=` +
+  '&SRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&FORMAT=image/png&TRANSPARENT=TRUE'
+const FUENTE_DE_BOSQUE = {
+  type: 'raster',
+  tiles: [TESELA_BOSQUE],
+  tileSize: 256,
+  minzoom: 10,
+  maxzoom: 18,
+  attribution: 'Bosque 2020: <a href="https://forobs.jrc.ec.europa.eu/GFC">JRC, Comisión Europea</a> (GFC2020 v4)',
+}
+const CAPA_BOSQUE = {
+  id: 'deslinde-bosque',
+  type: 'raster',
+  source: FUENTE_BOSQUE,
+  minzoom: 10,
+  paint: { 'raster-opacity': 0.45, 'raster-resampling': 'nearest' },
+}
+
 const origenDeLaPagina = () => (typeof location === 'undefined' ? '' : location.origin)
 
 /**
@@ -262,10 +287,12 @@ const origenDeLaPagina = () => (typeof location === 'undefined' ? '' : location.
  * las capas de Deslinde. Sin mapa base, el estilo no pide nada fuera del sitio:
  * un fondo liso, las parcelas de URLs `blob:` locales y las letras de las
  * etiquetas, que se sirven desde el propio sitio.
- * @param {{base?: Object|null, parcelas?: string|Object, centros?: string|Object, hallazgos?: string|Object, origen?: string}} partes
- *   `base` es el estilo de OpenFreeMap ya descargado; las demás, URLs de los Blob del worker.
+ * @param {{base?: Object|null, parcelas?: string|Object, centros?: string|Object, hallazgos?: string|Object, bosque?: boolean, origen?: string}} partes
+ *   `base` es el estilo de OpenFreeMap ya descargado; las demás, URLs de los Blob
+ *   del worker. `bosque` dibuja el bosque 2020 de la UE debajo de las parcelas.
  */
-export function construirEstilo({ base = null, parcelas = VACIA, centros = VACIA, hallazgos = VACIA, origen = origenDeLaPagina() } = {}) {
+export function construirEstilo({ base = null, parcelas = VACIA, centros = VACIA, hallazgos = VACIA, bosque = false, origen = origenDeLaPagina() } = {}) {
+  const deBosque = bosque ? [CAPA_BOSQUE] : []
   const propias = {
     [FUENTE_PARCELAS]: { type: 'geojson', data: parcelas, promoteId: 'indice' },
     [FUENTE_CENTROS]: {
@@ -282,13 +309,14 @@ export function construirEstilo({ base = null, parcelas = VACIA, centros = VACIA
       },
     },
     [FUENTE_HALLAZGOS]: { type: 'geojson', data: hallazgos },
+    ...(bosque && { [FUENTE_BOSQUE]: FUENTE_DE_BOSQUE }),
   }
   if (!base) {
     return {
       version: 8,
       glyphs: `${origen}/glyphs/{fontstack}/{range}.pbf`,
       sources: propias,
-      layers: [FONDO_LISO, ...CAPAS],
+      layers: [FONDO_LISO, ...deBosque, ...CAPAS],
     }
   }
   // Sin la vista propia del estilo base: si no, al cargarlo el mapa salta a
@@ -297,7 +325,7 @@ export function construirEstilo({ base = null, parcelas = VACIA, centros = VACIA
   return {
     ...resto,
     sources: { ...base.sources, ...propias },
-    layers: [...resto.layers, ...CAPAS],
+    layers: [...resto.layers, ...deBosque, ...CAPAS],
   }
 }
 
