@@ -1,20 +1,33 @@
 // Estilo de las capas de Deslinde sobre el mapa base, sin depender de MapLibre,
 // para poder probarlo en Node. mapa/index.js lo usa para dibujar.
+//
+// De lejos, cada parcela es una marca de color en su centro y las cercanas se
+// agrupan en un círculo con su cantidad: así un archivo no se ve como manchas
+// diminutas al abrirlo. De cerca (desde ZOOM_DETALLE) aparecen el borde, el
+// código de la parcela y, en cada problema, un punto con el número de su regla.
 
 import { peorSeveridad } from '../lista/datos.js'
 
-export const ESTILO_BASE = 'https://tiles.openfreemap.org/styles/positron'
+export const ESTILO_BASE = 'https://tiles.openfreemap.org/styles/dark'
 
 // Caja aproximada de Honduras, la misma de R4: vista inicial antes de cargar un archivo.
 export const VISTA_HONDURAS = [-89.4, 12.9, -83.1, 16.6]
 
-// Colores por severidad. Se distinguen por tono y por claridad (rojo oscuro,
-// ámbar claro, azul), para que también se separen con daltonismo rojo-verde.
-// El borde del error además es más grueso.
+// Desde este zoom se ven los bordes de las parcelas; antes, sus marcas.
+export const ZOOM_DETALLE = 13
+
+// Letras de las etiquetas propias (códigos, cantidades, reglas). Se sirven
+// desde el sitio (public/glyphs, licencia OFL) para que las etiquetas se vean
+// también con el mapa base apagado, sin pedir nada a otro sitio.
+export const FUENTE_ETIQUETAS = 'Noto Sans Bold'
+
+// Colores por severidad, pensados para el mapa oscuro. Se distinguen por tono
+// y por claridad (rojo, ámbar claro, azul), para que también se separen con
+// daltonismo rojo-verde. El borde del error además es más grueso.
 export const COLORES = {
-  error: '#b3202a',
-  advertencia: '#e0a100',
-  ok: '#2a74b0',
+  error: '#e5484d',
+  advertencia: '#f2b33d',
+  ok: '#4c9be8',
 }
 
 export const NOMBRES = {
@@ -23,90 +36,276 @@ export const NOMBRES = {
   ok: 'Sin hallazgos',
 }
 
+// El fondo casi negro de la página, para los bordes de las marcas y los halos del texto.
+const TINTA = '#0a0f0d'
+
+/**
+ * Colores del mapa base: el "dark" de OpenFreeMap con un verde apenas
+ * insinuado. Los bosques y el agua se distinguen; el resto se queda atrás para
+ * que manden las parcelas.
+ */
+export const PALETA_MAPA = {
+  fondo: '#0c1210',
+  agua: '#0e222b',
+  bosque: '#12261b',
+  residencial: '#101815',
+  edificio: '#0d1411',
+  camino: '#1b2621',
+  caminoMayor: '#25332c',
+  bordeCamino: '#2d3e36',
+  limite: '#3f544a',
+  lugar: '#93a39a',
+  calle: '#728279',
+  halo: '#060a08',
+}
+
+// Qué cambia en cada capa del estilo "dark". Las capas que no están aquí
+// quedan como vienen; si OpenFreeMap cambia el estilo, se ve gris, no se rompe.
+const p = PALETA_MAPA
+const TINTE = {
+  background: { 'background-color': p.fondo },
+  water: { 'fill-color': p.agua },
+  waterway: { 'line-color': p.agua },
+  landcover_wood: { 'fill-color': p.bosque, 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.75, 14, 0.9] },
+  landuse_park: { 'fill-color': p.bosque },
+  landuse_residential: { 'fill-color': p.residencial, 'fill-opacity': 0.8 },
+  building: { 'fill-color': p.edificio, 'fill-outline-color': p.camino },
+  highway_path: { 'line-color': p.camino },
+  highway_minor: { 'line-color': p.camino },
+  highway_major_casing: { 'line-color': p.bordeCamino },
+  highway_major_inner: { 'line-color': p.camino },
+  highway_major_subtle: { 'line-color': p.caminoMayor },
+  highway_motorway_casing: { 'line-color': p.bordeCamino },
+  highway_motorway_inner: { 'line-color': p.caminoMayor },
+  highway_motorway_subtle: { 'line-color': p.caminoMayor },
+  boundary_state: { 'line-color': p.limite },
+  'boundary_country_z0-4': { 'line-color': p.limite },
+  'boundary_country_z5-': { 'line-color': p.limite },
+  water_name: { 'text-color': '#6a8e9b', 'text-halo-color': p.halo },
+  highway_name_other: { 'text-color': p.calle, 'text-halo-color': p.halo },
+  highway_name_motorway: { 'text-color': p.calle },
+}
+for (const lugar of ['place_other', 'place_suburb', 'place_village', 'place_town', 'place_city', 'place_city_large', 'place_state', 'place_country_other', 'place_country_minor', 'place_country_major']) {
+  TINTE[lugar] = { 'text-color': p.lugar, 'text-halo-color': p.halo }
+}
+
+/** Copia del estilo base con los colores de Deslinde. No cambia el que recibe. */
+export function colorearBase(base) {
+  return {
+    ...base,
+    layers: base.layers.map((capa) => (TINTE[capa.id] ? { ...capa, paint: { ...capa.paint, ...TINTE[capa.id] } } : capa)),
+  }
+}
+
 const porSeveridad = (valores) => ['match', ['get', 'severidad'], 'error', valores.error, 'advertencia', valores.advertencia, valores.ok]
-const seleccionada = (si, no) => ['case', ['boolean', ['feature-state', 'seleccionada'], false], si, no]
+const estado = (clave) => ['boolean', ['feature-state', clave], false]
+const seleccionada = (si, no) => ['case', estado('seleccionada'), si, no]
+const encima = (si, no) => ['case', estado('seleccionada'), si, estado('encima'), si, no]
+
+// Color de un grupo: el de su peor parcela.
+const colorDeGrupo = [
+  'case',
+  ['>', ['get', 'errores'], 0],
+  COLORES.error,
+  ['>', ['get', 'advertencias'], 0],
+  COLORES.advertencia,
+  COLORES.ok,
+]
 
 export const FUENTE_PARCELAS = 'parcelas'
+export const FUENTE_CENTROS = 'centros'
 export const FUENTE_HALLAZGOS = 'hallazgos'
+
+const texto = (campo, tamano) => ({
+  'text-field': ['get', campo],
+  'text-font': [FUENTE_ETIQUETAS],
+  'text-size': tamano,
+})
 
 /** Capas propias, en orden de dibujo. Todas empiezan con "deslinde-". */
 export const CAPAS = [
+  // ---- De cerca: el borde de cada parcela ----
   {
     // Solo polígonos: las parcelas que se cruzan (R6) vienen como contorno y no se rellenan.
     id: 'deslinde-relleno',
     type: 'fill',
     source: FUENTE_PARCELAS,
+    minzoom: ZOOM_DETALLE - 1,
     filter: ['match', ['geometry-type'], ['Polygon', 'MultiPolygon'], true, false],
     paint: {
       'fill-color': porSeveridad(COLORES),
-      'fill-opacity': seleccionada(0.65, porSeveridad({ error: 0.4, advertencia: 0.4, ok: 0.25 })),
+      'fill-opacity': encima(0.55, porSeveridad({ error: 0.32, advertencia: 0.3, ok: 0.2 })),
     },
   },
   {
     id: 'deslinde-borde',
     type: 'line',
     source: FUENTE_PARCELAS,
+    minzoom: ZOOM_DETALLE - 1,
     filter: ['!=', ['geometry-type'], 'Point'],
     paint: {
       'line-color': porSeveridad(COLORES),
-      'line-width': seleccionada(4, porSeveridad({ error: 2.5, advertencia: 2, ok: 1 })),
+      'line-width': porSeveridad({ error: 2.5, advertencia: 2, ok: 1.5 }),
+    },
+  },
+  {
+    // La parcela elegida lleva un borde claro encima del de su color.
+    id: 'deslinde-seleccion',
+    type: 'line',
+    source: FUENTE_PARCELAS,
+    minzoom: ZOOM_DETALLE - 1,
+    filter: ['!=', ['geometry-type'], 'Point'],
+    paint: {
+      'line-color': '#ffffff',
+      'line-width': 3,
+      'line-opacity': seleccionada(1, 0),
     },
   },
   {
     id: 'deslinde-punto',
     type: 'circle',
     source: FUENTE_PARCELAS,
+    minzoom: ZOOM_DETALLE - 1,
     filter: ['==', ['geometry-type'], 'Point'],
     paint: {
       'circle-color': porSeveridad(COLORES),
-      'circle-radius': seleccionada(9, 6),
-      'circle-stroke-color': '#ffffff',
-      'circle-stroke-width': 1.5,
+      'circle-radius': encima(10, 7),
+      'circle-stroke-color': seleccionada('#ffffff', TINTA),
+      'circle-stroke-width': seleccionada(3, 2),
+    },
+  },
+
+  // ---- De lejos: una marca por parcela, agrupadas con su cantidad ----
+  {
+    id: 'deslinde-grupo',
+    type: 'circle',
+    source: FUENTE_CENTROS,
+    maxzoom: ZOOM_DETALLE,
+    filter: ['has', 'point_count'],
+    paint: {
+      'circle-color': colorDeGrupo,
+      'circle-radius': ['step', ['get', 'point_count'], 15, 10, 19, 100, 24, 1000, 30],
+      'circle-stroke-color': TINTA,
+      'circle-stroke-width': 3,
+      'circle-stroke-opacity': 0.9,
     },
   },
   {
-    // Dónde está cada problema dentro de la parcela (el cruce, el vértice repetido…).
+    id: 'deslinde-grupo-cifra',
+    type: 'symbol',
+    source: FUENTE_CENTROS,
+    maxzoom: ZOOM_DETALLE,
+    filter: ['has', 'point_count'],
+    layout: { ...texto('point_count_abbreviated', 13), 'text-allow-overlap': true },
+    paint: { 'text-color': TINTA },
+  },
+  {
+    id: 'deslinde-centro',
+    type: 'circle',
+    source: FUENTE_CENTROS,
+    maxzoom: ZOOM_DETALLE,
+    filter: ['!', ['has', 'point_count']],
+    paint: {
+      'circle-color': porSeveridad(COLORES),
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 5, 12, 8],
+      'circle-stroke-color': seleccionada('#ffffff', TINTA),
+      'circle-stroke-width': seleccionada(3, 2),
+    },
+  },
+
+  // ---- De cerca: dónde está cada problema y con qué regla ----
+  {
     id: 'deslinde-hallazgo',
     type: 'circle',
     source: FUENTE_HALLAZGOS,
-    minzoom: 12,
+    minzoom: ZOOM_DETALLE,
     paint: {
-      'circle-color': '#1f1f1f',
-      'circle-radius': 3.5,
-      'circle-stroke-color': '#ffffff',
-      'circle-stroke-width': 1.5,
+      'circle-color': '#ffffff',
+      'circle-radius': 4.5,
+      'circle-stroke-color': porSeveridad(COLORES),
+      'circle-stroke-width': 2.5,
     },
+  },
+  {
+    id: 'deslinde-hallazgo-regla',
+    type: 'symbol',
+    source: FUENTE_HALLAZGOS,
+    minzoom: ZOOM_DETALLE + 1,
+    layout: {
+      ...texto('regla', 12),
+      'text-anchor': 'left',
+      'text-offset': [0.75, 0],
+    },
+    paint: { 'text-color': '#ffffff', 'text-halo-color': TINTA, 'text-halo-width': 2 },
+  },
+  {
+    // El código de la parcela, sobre su centro, en cuanto sale de su grupo.
+    // Si no entran todos, MapLibre muestra los que no se pisan y el resto
+    // aparece al acercarse.
+    id: 'deslinde-nombre',
+    type: 'symbol',
+    source: FUENTE_CENTROS,
+    minzoom: ZOOM_DETALLE - 1,
+    filter: ['!', ['has', 'point_count']],
+    layout: { ...texto('id', 13), 'text-anchor': 'top', 'text-offset': [0, 0.6] },
+    paint: { 'text-color': '#eef3ef', 'text-halo-color': TINTA, 'text-halo-width': 2 },
   },
 ]
 
 export const VACIA = { type: 'FeatureCollection', features: [] }
-const FONDO_LISO = { id: 'fondo-liso', type: 'background', paint: { 'background-color': '#ece7dc' } }
+const FONDO_LISO = { id: 'fondo-liso', type: 'background', paint: { 'background-color': PALETA_MAPA.fondo } }
+
+const origenDeLaPagina = () => (typeof location === 'undefined' ? '' : location.origin)
 
 /**
  * Estilo completo del mapa: el mapa base (si está activado y cargado) y encima
- * las capas de Deslinde. Sin mapa base, el estilo no pide nada a internet: solo
- * un fondo liso y las parcelas, que vienen de URLs `blob:` locales.
- * @param {{base?: Object|null, parcelas?: string|Object, hallazgos?: Object}} partes
- *   `base` es el estilo de OpenFreeMap ya descargado; `parcelas`, la URL del Blob de la capa.
+ * las capas de Deslinde. Sin mapa base, el estilo no pide nada fuera del sitio:
+ * un fondo liso, las parcelas de URLs `blob:` locales y las letras de las
+ * etiquetas, que se sirven desde el propio sitio.
+ * @param {{base?: Object|null, parcelas?: string|Object, centros?: string|Object, hallazgos?: string|Object, origen?: string}} partes
+ *   `base` es el estilo de OpenFreeMap ya descargado; las demás, URLs de los Blob del worker.
  */
-export function construirEstilo({ base = null, parcelas = VACIA, hallazgos = VACIA } = {}) {
+export function construirEstilo({ base = null, parcelas = VACIA, centros = VACIA, hallazgos = VACIA, origen = origenDeLaPagina() } = {}) {
   const propias = {
     [FUENTE_PARCELAS]: { type: 'geojson', data: parcelas, promoteId: 'indice' },
+    [FUENTE_CENTROS]: {
+      type: 'geojson',
+      data: centros,
+      promoteId: 'indice',
+      cluster: true,
+      clusterMaxZoom: ZOOM_DETALLE - 2,
+      clusterRadius: 42,
+      // Cuántas parcelas del grupo tienen errores y cuántas solo advertencias: dan el color del grupo.
+      clusterProperties: {
+        errores: ['+', ['case', ['==', ['get', 'severidad'], 'error'], 1, 0]],
+        advertencias: ['+', ['case', ['==', ['get', 'severidad'], 'advertencia'], 1, 0]],
+      },
+    },
     [FUENTE_HALLAZGOS]: { type: 'geojson', data: hallazgos },
   }
-  if (!base) return { version: 8, sources: propias, layers: [FONDO_LISO, ...CAPAS] }
+  if (!base) {
+    return {
+      version: 8,
+      glyphs: `${origen}/glyphs/{fontstack}/{range}.pbf`,
+      sources: propias,
+      layers: [FONDO_LISO, ...CAPAS],
+    }
+  }
   // Sin la vista propia del estilo base: si no, al cargarlo el mapa salta a
   // esa vista y pierde el encuadre de Honduras o de las parcelas.
-  const { center, zoom, bearing, pitch, ...resto } = base
+  const { center, zoom, bearing, pitch, ...resto } = colorearBase(base)
   return {
     ...resto,
     sources: { ...base.sources, ...propias },
-    layers: [...base.layers, ...CAPAS],
+    layers: [...resto.layers, ...CAPAS],
   }
 }
 
 /** Capas donde un clic elige una parcela. El borde cuenta para las que solo tienen contorno. */
-export const CAPAS_CLIC = ['deslinde-relleno', 'deslinde-borde', 'deslinde-punto']
+export const CAPAS_CLIC = ['deslinde-relleno', 'deslinde-borde', 'deslinde-punto', 'deslinde-centro']
+
+/** Capa de los grupos: un clic acerca el mapa hasta separarlos. */
+export const CAPA_GRUPO = 'deslinde-grupo'
 
 export const esCapaPropia = (id) => id.startsWith('deslinde-')
 

@@ -16,4 +16,6 @@ export const ICONOS = {
   ok: icono('<circle cx="12" cy="12" r="9"/><path d="m8.4 12.3 2.5 2.5 4.8-5"/>', 'icono-ok'),
   flecha: icono('<path d="m6 9 6 6 6-6"/>', 'icono-flecha'),
   codigo: icono('<path d="m8 8-4 4 4 4"/><path d="m16 8 4 4-4 4"/><path d="m13.5 5-3 14"/>'),
+  cerrar: icono('<path d="M6 6l12 12"/><path d="M18 6 6 18"/>', 'icono-cerrar'),
+  info: icono('<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.8h.01"/>', 'icono-info'),
 }

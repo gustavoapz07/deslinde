@@ -20,6 +20,9 @@ La investigación, las decisiones y el plan están en la bóveda de Obsidian `Ag
 | 1. Motor de validación (R1 a R12) y salidas | Hecha el 28-09-2026: 36 pruebas pasan; 10,000 parcelas en unos 0.5 s |
 | 2. Interfaz: carga, mapa, lista de errores | Hecha el 28-09-2026: Web Worker, mapa por severidad, lista enlazada al mapa, ejemplo para probar, veredicto en lenguaje simple y ayuda (80 pruebas pasan) |
 | 3. Auditoría y publicación | Publicada el 30-09-2026 en [deslinde.pages.dev](https://deslinde.pages.dev/), con auditoría, rediseño y privacidad revisados (82 pruebas pasan). Falta la prueba con una persona ajena |
+| 4. Portafolio | Presentación del caso hecha el 30-09-2026; el post se publica al terminar la v1 |
+| 5. Rediseño | Hecho el 30-09-2026: tema oscuro con el mapa al centro, parcelas agrupadas de lejos y con su código de cerca, ficha al costado (92 pruebas pasan) |
+| 6. v1 | Siguiente: KML y shapefile, juntar archivos de varias fuentes, revisión de bosque 2020 con evidencia e informe en PDF |
 
 ## Cómo correrlo
 
@@ -86,6 +89,8 @@ const { informe, limites, archivos } = await validador.validar(archivo, {
   alAvanzar: (avance) => { /* mostrar el avance */ },
 })
 // archivos.mapa: capa GeoJSON para MapLibre, una parcela por Feature con su peor severidad
+// archivos.centros: un punto por parcela, dentro de ella, para verlas de lejos y poner su código
+// archivos.hallazgos: un punto por hallazgo con ubicación, con su regla
 // archivos.informe y archivos.corregido: las descargas, listas para URL.createObjectURL
 // limites: [oeste, sur, este, norte] de las parcelas dibujables, para encuadrar el mapa
 ```
@@ -106,44 +111,50 @@ Medido el 28-09-2026 en el navegador, con el build de producción y el archivo d
 
 Pensada para técnicos de cooperativas, exportadores y encargados de cumplimiento, en español simple.
 
-**Identidad**: verde de cafetal para la marca y las acciones y fondos cálidos color pergamino (así se comercia
-el café en Honduras). El logo es un grano de café oro (el café verde de exportación) dentro de las marcas de
-esquina de un encuadre: Deslinde revisa los límites de cada parcela. Los títulos van en Bitter (Huerta
-Tipográfica), una serifa de losa que recuerda la rotulación de los sacos de exportación, servida desde el propio
-sitio; el texto de la interfaz, en la fuente del sistema; los códigos de parcela, en monoespaciada. Sin degradados,
-sin etiquetas tipo píldora y sin títulos en mayúsculas pequeñas: cada sección tiene un título de verdad.
+**Identidad**: tema oscuro y minimalista, con el mapa al centro. Fondo casi negro con un verde apenas insinuado,
+verde hoja para las acciones y café oro solo en el logo: un grano de café oro (el café verde de exportación) dentro
+de las marcas de esquina de un encuadre, porque Deslinde revisa los límites de cada parcela. Una sola familia,
+Manrope, para el nombre y el texto; los códigos de parcela, en IBM Plex Mono. Las dos se sirven desde el propio
+sitio. Pocas cajas: el aire y las líneas finas separan las partes, y el color queda para las severidades y las
+acciones. Sin degradados, sin etiquetas tipo píldora y sin títulos en mayúsculas pequeñas.
 
-
-- **Primera vista**: una zona para soltar el archivo (en pantallas táctiles invita a elegirlo), el botón **"Probar con un ejemplo"**,
-  que carga `datos/sinteticos/errores-mezclados.geojson` (24 parcelas inventadas, un caso por regla).
-  Quien visita el portafolio no tiene un archivo de parcelas a mano.
+- **Pantalla ancha**: el panel a la izquierda (archivo, resultado, lista y ayuda) y el mapa en todo el resto, con el
+  interruptor del mapa base, la leyenda y la ficha de la parcela flotando encima.
+- **Primera vista**: una zona para soltar el archivo (en pantallas táctiles invita a elegirlo) y el botón **"Probar con un ejemplo"**,
+  que carga `datos/sinteticos/errores-mezclados.geojson` (24 parcelas inventadas, un caso por regla). El mapa vacío
+  ofrece lo mismo: quien visita el portafolio no tiene un archivo de parcelas a mano.
 - **Arrastrar y soltar** el archivo en cualquier parte de la página. Un formato que no es GeoJSON ni CSV recibe un mensaje claro.
 - **Avance** con barra mientras el worker revisa.
 - **Veredicto** en una frase, con un ícono de forma distinta por severidad, contando parcelas (lo que hay que ir a corregir):
   "7 parcelas tienen errores. Corríjalas antes de enviar el archivo." Debajo, qué se revisó y qué no: 12 reglas de
-  geolocalización, no deforestación. Luego, una barra con la proporción de parcelas de cada grupo y sus cifras.
-- **Hallazgos** con filtro segmentado por severidad (radios, se usa con las flechas del teclado) y por regla. Cada hallazgo
-  lleva el ícono de su severidad, el código de la parcela y el nombre de la regla, no solo su número.
-- **Ayuda plegable**: qué revisa cada regla y qué formato acepta, con el archivo de ejemplo para descargar.
-- **Mapa base**: un interruptor sobre el mapa, donde se buscan las capas, con un enlace a la explicación de privacidad del panel.
+  geolocalización, no deforestación. Luego, las cifras de cada grupo y una barra con su proporción.
+- **Hallazgos** en filas, con filtro segmentado por severidad (radios, se usa con las flechas del teclado) y por regla. Cada
+  hallazgo lleva el ícono de su severidad, el código de la parcela y el nombre de la regla, no solo su número.
+- **Ayuda plegable**: qué revisa cada regla, qué corrige el archivo corregido y qué formato acepta, con el archivo de ejemplo para descargar.
 - **Celular**: resultado, mapa, lista y ayuda, uno debajo del otro, para que el mapa se vea apenas termina la revisión.
+  La ficha de la parcela sube desde abajo y tapa la mitad del mapa como mucho.
 - **Accesibilidad**: al terminar la revisión o al fallar, un aviso para lectores de pantalla dice el veredicto
   (`#anuncio`); el avance no se anuncia. Los controles del mapa están en español. La lista es la forma de
-  recorrer los hallazgos con teclado. Si se pidió menos movimiento, el mapa y la página no se animan.
+  recorrer los hallazgos con teclado; Escape cierra la ficha. Si se pidió menos movimiento, el mapa y la página
+  no se animan. Todo el texto pasa el contraste AA (el par más bajo, 5.3:1).
 
 ## Peso y seguridad
 
 - **El mapa se carga aparte** (`import()` en `src/main.js`). MapLibre es casi todo el peso: sin él, la página
-  se puede usar con unos 16 KB comprimidos (antes, 296 KB). Los 435 KB del mapa y su worker bajan enseguida,
+  se puede usar con unos 17 KB comprimidos (antes, 296 KB). Los 435 KB del mapa y su worker bajan enseguida,
   en segundo plano. Si no llegan, la revisión, la lista y las descargas funcionan igual y el mapa lo avisa.
 
   | Qué | Comprimido (gzip) | Cuándo baja |
   |-----|-------------------|-------------|
-  | Página (HTML, JS y CSS) | 16 KB | Al abrir |
-  | Fuente Bitter de los títulos (solo alfabeto latino) | 34 KB | Al abrir, en paralelo; mientras tanto se usa Georgia |
+  | Página (HTML, JS y CSS) | 17 KB | Al abrir |
+  | Fuentes Manrope y IBM Plex Mono (solo alfabeto latino) | 39 KB | Al abrir, en paralelo; mientras tanto, la fuente del sistema |
   | MapLibre y su CSS | 291 KB | Justo después, en segundo plano |
   | Worker de MapLibre | 144 KB | Cuando arranca el mapa |
   | Motor (worker, con Turf) | 26 KB | Al revisar el primer archivo |
+  | Letras de las etiquetas del mapa (`public/glyphs`) | 79 KB | Solo con el mapa base apagado; encendido, las da OpenFreeMap |
+
+- **Fuentes siempre como archivo**: `vite.config.js` no deja que Vite incruste las fuentes chicas como `data:`,
+  porque la política de seguridad las bloquearía (`font-src 'self'`).
 
 - **Política de contenido (CSP)** en `public/_headers`, que Cloudflare Pages aplica a todo el sitio:
   el navegador solo deja conectar con Deslinde y con `tiles.openfreemap.org`. Aunque un error del código
@@ -156,25 +167,38 @@ La versión de Node por defecto de Pages (22.16) cumple lo que piden Vite y Vite
 
 ## Mapa
 
-`src/mapa/` dibuja las parcelas con MapLibre sobre el mapa base de OpenFreeMap (estilo `positron`).
+`src/mapa/` dibuja las parcelas con MapLibre sobre el mapa base de OpenFreeMap: el estilo `dark`, teñido con
+un verde apenas insinuado para que se distingan bosques, ríos y caminos y manden las parcelas.
 
-- **Colores por severidad**: rojo oscuro (errores), ámbar (solo advertencias) y azul (sin hallazgos).
-  Se distinguen por tono y por claridad, también con daltonismo rojo-verde; el borde del error es más grueso.
-- **Puntos negros**: dónde está cada problema (el cruce, el vértice repetido…), desde zoom 12.
+- **Colores por severidad**: rojo (errores), ámbar (solo advertencias) y azul (sin hallazgos). Se distinguen por
+  tono y por claridad, también con daltonismo rojo-verde; el borde del error es más grueso. La leyenda queda
+  siempre a la vista, en una franja abajo.
+- **De lejos**: cada parcela es una marca de color en su centro, y las cercanas se agrupan en un círculo con su
+  cantidad, del color de la peor. Un clic en el grupo acerca el mapa hasta separarlas. Así un archivo no se ve
+  como manchas diminutas al abrirlo, y 10,000 parcelas se leen como una cuadrícula de cantidades.
+- **De cerca**: desde el zoom 12 se ve el borde de cada parcela, y su código aparece en cuanto sale de su grupo.
+  El código va sobre el centro de la parcela, un punto que siempre cae dentro de ella.
+- **Dónde falla**: un punto blanco con el borde del color de la severidad marca cada problema (el cruce, el vértice
+  repetido…), desde el zoom 13, y al lado dice su regla ("R6").
 - **Parcelas que se cruzan (R6)**: se dibujan como contorno. Como polígono, un moño tiene área neta cero y
   MapLibre lo descarta al cortar en teselas: la parcela desaparecía del mapa.
-- **Clic en una parcela**: ficha con su código, estado, hallazgos y qué hacer. Los textos del archivo se escriben como texto, nunca como HTML.
-  Si el clic no cae dentro de una parcela, se busca en un margen de 6 px, para acertarle a un contorno o a un punto con el dedo.
-- **Encuadre**: las parcelas dentro de Honduras. Una parcela lejana (R4) se dibuja igual, pero no achica el resto.
-- **Mapa base apagable**: sin él, el estilo no tiene ninguna dirección de internet y el mapa no pide nada.
-  La preferencia se recuerda en el navegador. Si OpenFreeMap no responde, las parcelas se ven sobre fondo liso.
+- **Clic en una parcela**: se marca con un borde blanco y se abre su ficha (código, estado, hallazgos y qué hacer),
+  fija a la derecha del mapa (abajo en el celular), no encima de la parcela. Los textos del archivo se escriben
+  como texto, nunca como HTML. Si el clic no cae dentro de una parcela, se busca en un margen de 6 px, para
+  acertarle a un contorno o a una marca con el dedo. Al pasar el mouse, un globo dice el código y el estado.
+- **Encuadre**: las parcelas dentro de Honduras, fuera de las tarjetas que flotan sobre el mapa (interruptor,
+  leyenda y ficha). Una parcela lejana (R4) se dibuja igual, pero no achica el resto.
+- **Mapa base apagable**: sin él, el estilo no tiene ninguna dirección de otro sitio y el mapa no pide nada afuera.
+  Las letras de las etiquetas (Noto Sans Bold, en `public/glyphs`) se sirven desde el propio sitio, así que los
+  códigos se ven igual. La preferencia se recuerda en el navegador. Si OpenFreeMap no responde, las parcelas se
+  ven sobre fondo liso.
 - **Auditoría de privacidad**: `#mapa[data-peticiones-externas]` cuenta las peticiones del mapa que salen del equipo.
   Con el mapa base apagado no sube al mover ni acercar el mapa.
 
-Las capas de parcelas y de hallazgos llegan del worker como URL de un `Blob`: MapLibre las lee y las corta en su propio worker.
+Las capas de parcelas, centros y hallazgos llegan del worker como URL de un `Blob`: MapLibre las lee y las corta en su propio worker.
 Con 10,000 parcelas la página no se congela; MapLibre tiene pausas ocasionales de 50 a 160 ms al cargar teselas nuevas.
 
-La parte que no necesita MapLibre (estilo, capas, ficha) está en `src/mapa/capas.js` y se prueba en Node (`pruebas/mapa.test.js`).
+La parte que no necesita MapLibre (estilo, teñido del mapa base, capas, ficha) está en `src/mapa/capas.js` y se prueba en Node (`pruebas/mapa.test.js`).
 
 ## Lista de hallazgos
 
@@ -228,12 +252,14 @@ estrella que no se cruzan ni se solapan entre sí.
 |-------|---------|---------|----------|
 | Geometría | `@turf/turf` | 7.4.0 | MIT |
 | Mapa | `maplibre-gl` | 6.11.2 | BSD-3-Clause |
-| Mapa base (servicio, sin paquete) | OpenFreeMap, estilo `positron` | — | Datos © OpenStreetMap (ODbL), OpenMapTiles |
-| Tipografía de los títulos | `@fontsource-variable/bitter` | 5.3.0 | OFL-1.1 |
+| Mapa base (servicio, sin paquete) | OpenFreeMap, estilo `dark` | — | Datos © OpenStreetMap (ODbL), OpenMapTiles |
+| Letras de las etiquetas del mapa (sin paquete) | Noto Sans Bold, glifos de OpenFreeMap en `public/glyphs` | — | OFL-1.1 (`public/glyphs/LICENSE-OFL.txt`) |
+| Tipografía de la marca y el texto | `@fontsource-variable/manrope` | 5.3.0 | OFL-1.1 |
+| Tipografía de los códigos | `@fontsource/ibm-plex-mono` | 5.3.0 | OFL-1.1 |
 | Servidor de desarrollo y compilación | `vite` | 8.3.1 | MIT |
 | Pruebas | `vitest` | 5.0.2 | MIT |
 
-Versiones y licencias leídas del `package.json` de cada paquete instalado el 28-09-2026 (la tipografía, el 29-09-2026).
+Versiones y licencias leídas del `package.json` de cada paquete instalado el 28-09-2026 (las tipografías, el 30-09-2026).
 
 ## Licencia
 

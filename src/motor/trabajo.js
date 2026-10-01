@@ -4,7 +4,7 @@
 // pasar un Blob entre hilos no copia su contenido, y MapLibre puede leer la capa
 // del mapa desde su propia URL sin que la página toque las geometrías.
 
-import { bbox } from '@turf/turf'
+import { bbox, centroid, pointOnFeature } from '@turf/turf'
 import { analizar, ErrorDeArchivo } from './index.js'
 import { HONDURAS } from './reglas.js'
 import { escribirCorregido, informeCSV } from './salidas.js'
@@ -18,7 +18,7 @@ export const MENSAJE_INTERNO =
  * @property {[number, number, number, number]|null} limites  Caja para encuadrar el mapa: las parcelas dibujables dentro de Honduras, o todas si ninguna lo está.
  * @property {{error: number, advertencia: number, ok: number, sinDibujar: number}} conteo  Parcelas por peor severidad, para la leyenda.
  * @property {number[]} indices  Posición en el archivo de la parcela de cada resultado del informe, en el mismo orden.
- * @property {{mapa: Blob, hallazgos: Blob, informe: Blob, corregido: Blob}} archivos  Capas del mapa y descargas.
+ * @property {{mapa: Blob, centros: Blob, hallazgos: Blob, informe: Blob, corregido: Blob}} archivos  Capas del mapa y descargas.
  */
 
 const dentroDeHonduras = ([oeste, sur, este, norte]) =>
@@ -66,6 +66,39 @@ export function capaDelMapa(parcelas, estados) {
   return { type: 'FeatureCollection', features }
 }
 
+// Un punto que represente a la parcela. En un polígono, uno que caiga adentro
+// (el centroide de una parcela en forma de U puede caer afuera). En el contorno
+// de una parcela que se cruza, el centroide de sus puntos: no tiene un adentro.
+function centroDe(p, cruzada) {
+  if (p.tipo === 'Point') return p.coords
+  if (cruzada) return centroid(contorno(p)).geometry.coordinates
+  try {
+    return pointOnFeature({ type: p.tipo, coordinates: p.coords }).geometry.coordinates
+  } catch {
+    return centroid({ type: p.tipo, coordinates: p.coords }).geometry.coordinates
+  }
+}
+
+/**
+ * Un punto por parcela, para verlas de lejos: el mapa las muestra como marcas
+ * de color, agrupadas con su cantidad cuando están cerca, y pone su código
+ * encima al acercarse. Las que no se pueden dibujar quedan fuera, como en la
+ * capa del mapa.
+ */
+export function capaDeCentros(parcelas, estados) {
+  const features = []
+  for (const p of parcelas) {
+    const { severidad, dibujable, cruzada } = estados[p.indice]
+    if (!dibujable) continue
+    features.push({
+      type: 'Feature',
+      properties: { indice: p.indice, id: p.etiqueta, severidad },
+      geometry: { type: 'Point', coordinates: centroDe(p, cruzada) },
+    })
+  }
+  return { type: 'FeatureCollection', features }
+}
+
 /**
  * Puntos de los hallazgos que traen ubicación, para la capa "deslinde-hallazgo"
  * del mapa. Se arma aquí y no en la página: con miles de hallazgos, armarla y
@@ -100,6 +133,7 @@ export function procesar(texto, opciones = {}) {
     indices,
     archivos: {
       mapa: new Blob([JSON.stringify(mapa)], { type: 'application/geo+json' }),
+      centros: new Blob([JSON.stringify(capaDeCentros(parcelas, estados))], { type: 'application/geo+json' }),
       hallazgos: new Blob([JSON.stringify(capaDeHallazgos(informe.resultados))], { type: 'application/geo+json' }),
       informe: new Blob([informeCSV(informe)], { type: 'text/csv;charset=utf-8' }),
       corregido: new Blob([escribirCorregido(parcelas)], { type: 'application/geo+json' }),

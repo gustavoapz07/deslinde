@@ -11,7 +11,7 @@ const numero = new Intl.NumberFormat('en-US')
 // En pantallas anchas el panel tiene su propio desplazamiento: ahí sí conviene
 // llevar el hallazgo a la vista. En celular movería toda la página y sacaría
 // el mapa de la vista.
-const panelConDesplazamiento = () => window.matchMedia('(min-width: 801px)').matches
+const panelConDesplazamiento = () => window.matchMedia('(min-width: 901px)').matches
 
 /**
  * @param {HTMLElement} contenedor
@@ -169,7 +169,7 @@ export function crearLista(contenedor, { alElegir }) {
     cambiar()
     const mismo = posicion && lista.querySelector(`[data-posicion="${posicion}"]`)
     if (!mismo) return
-    const panel = contenedor.closest('.panel')
+    const panel = contenedor.closest('.panel-cuerpo')
     const desplazable = panel && panel.scrollHeight > panel.clientHeight ? panel : window
     desplazable.scrollBy(0, mismo.getBoundingClientRect().top - antes)
   }

@@ -1,6 +1,9 @@
 // Página de Deslinde: cargar un archivo (o el de ejemplo), revisarlo en el Web
 // Worker con el avance en pantalla, ver el veredicto, las parcelas en el mapa y
 // la lista de hallazgos enlazada, y descargar las salidas.
+//
+// Pantalla ancha: panel a la izquierda y el mapa en todo el resto, con la
+// leyenda, el interruptor del mapa base y la ficha de la parcela encima.
 
 import './estilos.css'
 import ejemploUrl from '../datos/sinteticos/errores-mezclados.geojson?url'
@@ -25,26 +28,23 @@ const LOGO = `
     </g>
     <g transform="rotate(35 16 16)">
       <ellipse cx="16" cy="16" rx="6.6" ry="9.6" fill="#d9a21b"/>
-      <path d="M16 7.7C12.9 11.7 19.1 20.3 16 24.3" fill="none" stroke="#0e3526" stroke-width="1.9" stroke-linecap="round"/>
+      <path d="M16 7.7C12.9 11.7 19.1 20.3 16 24.3" fill="none" stroke="#0d1411" stroke-width="1.9" stroke-linecap="round"/>
     </g>
   </svg>`
 
 const muestra = (s) => `<span class="muestra ${s}" aria-hidden="true"></span>`
 
 document.querySelector('#app').innerHTML = `
-  <header class="cabecera">
-    <h1 class="identidad">${LOGO}<span>Deslinde</span></h1>
-    <p class="lema">Validador de parcelas de café para el EUDR</p>
-    <div class="cabecera-fin">
-      <a class="enlace-cabecera" href="${REPOSITORIO}" target="_blank" rel="noopener">${ICONOS.codigo}<span>Código abierto</span></a>
-    </div>
-  </header>
-  <main class="cuerpo">
-    <div class="panel">
+  <aside class="panel">
+    <header class="cabecera">
+      <h1 class="identidad">${LOGO}<span>Deslinde</span></h1>
+      <a class="enlace-codigo" href="${REPOSITORIO}" target="_blank" rel="noopener" title="Código abierto en GitHub">${ICONOS.codigo}<span class="oculto">Código abierto en GitHub</span></a>
+    </header>
+    <div class="panel-cuerpo">
       <section class="arriba" aria-label="Archivo y resultado">
         <div id="bienvenida" class="bienvenida">
           <h2 class="titular">Revise su archivo de parcelas antes de enviarlo</h2>
-          <p class="bajada">Deslinde encuentra los errores de geolocalización que pide el EUDR y le muestra en el mapa dónde está cada uno.</p>
+          <p class="bajada">Deslinde encuentra los errores de geolocalización que pide el EUDR para el café y le muestra en el mapa dónde está cada uno.</p>
         </div>
         <div class="carga">
           <input id="archivo" class="oculto" type="file" accept=".geojson,.json,.csv" />
@@ -78,33 +78,24 @@ document.querySelector('#app').innerHTML = `
             </div>
           </div>
           <div class="parcelas">
-            <div class="proporcion" aria-hidden="true">
-              ${SEVERIDADES.map((s) => `<span class="tramo ${s}" id="tramo-${s}"></span>`).join('')}
-            </div>
             <ul class="cifras">
               ${SEVERIDADES.map(
                 (s) => `
-                <li class="cifra">
+                <li class="cifra ${s}">
                   <span class="cifra-numero" id="cuenta-${s}"></span>
                   <span class="cifra-nombre">${muestra(s)}${NOMBRES[s]}</span>
                 </li>`,
               ).join('')}
             </ul>
+            <div class="proporcion" aria-hidden="true">
+              ${SEVERIDADES.map((s) => `<span class="tramo ${s}" id="tramo-${s}"></span>`).join('')}
+            </div>
             <p class="nota" id="sin-dibujar" hidden></p>
           </div>
           <div class="descargas">
-            <a id="bajar-informe" class="descarga">${ICONOS.descargar}<span><strong>Informe de hallazgos (CSV)</strong><small>Una fila por hallazgo; se abre en Excel</small></span></a>
-            <a id="bajar-corregido" class="descarga">${ICONOS.descargar}<span><strong>Archivo corregido (GeoJSON)</strong><small>Con las correcciones seguras aplicadas</small></span></a>
+            <a id="bajar-informe" class="descarga" title="Una fila por hallazgo. Se abre en Excel.">${ICONOS.descargar}<span>Informe <small>CSV</small></span></a>
+            <a id="bajar-corregido" class="descarga" title="Con las tres correcciones seguras. Lo demás se corrige en el archivo de origen.">${ICONOS.descargar}<span>Archivo corregido <small>GeoJSON</small></span></a>
           </div>
-          <p class="nota">El GeoJSON corregido invierte los pares al revés, cierra los bordes y quita los vértices repetidos. Lo demás hay que corregirlo en el archivo de origen.</p>
-        </div>
-        <div class="como">
-          <h3>Cómo funciona</h3>
-          <ol class="pasos">
-            <li><span><strong>Cargue</strong> un GeoJSON o un CSV de puntos con sus parcelas.</span></li>
-            <li><span><strong>Vea en el mapa</strong> qué parcelas tienen errores y por qué.</span></li>
-            <li><span><strong>Descargue</strong> el informe y el archivo con las correcciones seguras.</span></li>
-          </ol>
         </div>
       </section>
       <section id="lista" class="lista" hidden></section>
@@ -139,28 +130,33 @@ document.querySelector('#app').innerHTML = `
         </p>
       </section>
     </div>
-    <div class="mapa-envoltura">
-      <div id="mapa" class="mapa" role="region" aria-label="Mapa de las parcelas"></div>
-      <div class="control-fondo">
-        <label class="interruptor">
-          <input id="fondo" type="checkbox" role="switch" />
-          <span class="interruptor-pista" aria-hidden="true"></span>
-          <span>Mapa base</span>
-        </label>
-        <a href="#privacidad" class="control-ayuda" id="ver-privacidad">Qué ve OpenFreeMap</a>
-        <p class="aviso-error" id="fondo-error" hidden>No se pudo cargar el mapa base (¿sin internet?). Las parcelas se ven igual sobre fondo liso.</p>
-      </div>
-      <div id="mapa-vacio" class="mapa-vacio">
-        <div class="vacio-tarjeta">
-          <p class="vacio-titulo" id="mapa-vacio-titulo">Aquí verá sus parcelas</p>
-          <p id="mapa-vacio-texto">Cada una con el color de lo que encuentre la revisión:</p>
-          <ul class="vacio-leyenda" id="mapa-vacio-leyenda">
-            ${SEVERIDADES.map((s) => `<li>${muestra(s)}${NOMBRES[s]}</li>`).join('')}
-          </ul>
-        </div>
+  </aside>
+  <div class="mapa-envoltura">
+    <div id="mapa" class="mapa" role="region" aria-label="Mapa de las parcelas"></div>
+    <div class="control-fondo">
+      <label class="interruptor">
+        <input id="fondo" type="checkbox" role="switch" />
+        <span class="interruptor-pista" aria-hidden="true"></span>
+        <span>Mapa base</span>
+      </label>
+      <a href="#privacidad" class="control-ayuda" id="ver-privacidad" title="Qué ve OpenFreeMap">${ICONOS.info}<span class="oculto">Qué ve OpenFreeMap</span></a>
+      <p class="aviso-error" id="fondo-error" hidden>No se pudo cargar el mapa base (¿sin internet?). Las parcelas se ven igual sobre fondo liso.</p>
+    </div>
+    <ul class="leyenda" id="leyenda" aria-label="Qué muestra el mapa">
+      ${SEVERIDADES.map((s) => `<li>${muestra(s)}${NOMBRES[s]}</li>`).join('')}
+      <li title="Varias parcelas juntas, con su cantidad. Del color de la peor."><span class="muestra-grupo" aria-hidden="true">12</span>Grupo de parcelas</li>
+      <li title="Dónde está el problema dentro de la parcela, con el número de su regla."><span class="muestra-problema" aria-hidden="true"></span>Dónde falla</li>
+    </ul>
+    <section id="ficha" class="ficha" aria-label="Ficha de la parcela" hidden></section>
+    <div id="globo" class="globo" aria-hidden="true" hidden></div>
+    <div id="mapa-vacio" class="mapa-vacio">
+      <div class="vacio-tarjeta">
+        <p class="vacio-titulo" id="mapa-vacio-titulo">Aquí verá sus parcelas</p>
+        <p id="mapa-vacio-texto">Cada una con el color de lo que encuentre la revisión. Cargue su archivo o pruebe con 24 parcelas inventadas.</p>
+        <button type="button" class="boton principal" id="ejemplo-mapa">Probar con un ejemplo</button>
       </div>
     </div>
-  </main>
+  </div>
   <div id="soltar" class="soltar" hidden><p>${ICONOS.subir}<span>Suelte el archivo para revisarlo</span></p></div>
 `
 
@@ -199,14 +195,21 @@ $('#fondo').checked = conFondo
 // MapLibre es casi todo el peso de la página (unos 430 KB comprimidos con su
 // worker). Se carga aparte para que la página se pueda usar antes con conexiones
 // lentas: el archivo se revisa y la lista aparece aunque el mapa no haya llegado.
-const mapaListo = import('./mapa/index.js').then(({ crearMapa }) => crearMapa($('#mapa'), { conFondo }))
+const mapaListo = import('./mapa/index.js').then(({ crearMapa }) =>
+  crearMapa($('#mapa'), {
+    conFondo,
+    ficha: $('#ficha'),
+    globo: $('#globo'),
+    controles: { fondo: $('.control-fondo'), leyenda: $('#leyenda') },
+  }),
+)
 let sinMapa = false
 mapaListo.catch(() => {
   sinMapa = true
   $('#mapa-vacio-titulo').textContent = 'No se pudo cargar el mapa'
   $('#mapa-vacio-texto').textContent =
     '¿Se cortó la conexión? La lista y las descargas funcionan igual. Vuelva a cargar la página para ver el mapa.'
-  $('#mapa-vacio-leyenda').hidden = true
+  $('#ejemplo-mapa').hidden = true
   $('#mapa-vacio').hidden = false
 })
 // Mientras MapLibre no llega, las órdenes esperan. De mostrar y limpiar solo vale
@@ -232,7 +235,7 @@ const lista = crearLista($('#lista'), {
     // En pantallas anchas ya está a la vista y esto no mueve nada.
     // MapLibre ya evita sus animaciones si se pidió menos movimiento; el desplazamiento también.
     const suave = !matchMedia('(prefers-reduced-motion: reduce)').matches
-    $('#mapa').scrollIntoView({ block: 'nearest', behavior: suave ? 'smooth' : 'auto' })
+    $('.mapa-envoltura').scrollIntoView({ block: 'nearest', behavior: suave ? 'smooth' : 'auto' })
   },
 })
 mapa.alElegir((indice) => lista.marcar(indice))
@@ -327,8 +330,8 @@ function mostrarResultado(archivo, { informe, limites, conteo, indices, archivos
   $('#veredicto-texto').textContent = v.texto
   const { errores, advertencias } = informe.resumen
   $('#alcance').textContent =
-    `En total, ${plural(errores, 'error', 'errores')} y ${plural(advertencias, 'advertencia', 'advertencias')} ` +
-    'en 12 reglas de geolocalización. Deslinde no revisa deforestación.'
+    `${plural(errores, 'error', 'errores')} y ${plural(advertencias, 'advertencia', 'advertencias')} en 12 reglas de geolocalización. ` +
+    'No revisa deforestación.'
   for (const severidad of SEVERIDADES) {
     $(`#cuenta-${severidad}`).textContent = numero.format(conteo[severidad])
     // Cada tramo de la barra ocupa lo que su grupo de parcelas.
@@ -337,8 +340,8 @@ function mostrarResultado(archivo, { informe, limites, conteo, indices, archivos
   }
   $('#sin-dibujar').hidden = conteo.sinDibujar === 0
   $('#sin-dibujar').textContent =
-    `${plural(conteo.sinDibujar, 'parcela no se puede dibujar', 'parcelas no se pueden dibujar')} ` +
-    '(coordenadas ilegibles o que no están en grados). Aparecen en la lista y en el informe.'
+    `${plural(conteo.sinDibujar, 'parcela no se puede dibujar', 'parcelas no se pueden dibujar')}: ` +
+    'sus coordenadas no están en grados o no se pueden leer. Está en la lista y en el informe.'
   enlazar($('#bajar-informe'), archivos.informe, `${nombreBase(archivo.name)}-informe.csv`)
   enlazar($('#bajar-corregido'), archivos.corregido, `${nombreBase(archivo.name)}-corregido.geojson`)
   $('#resultado').hidden = false
@@ -348,7 +351,13 @@ function mostrarResultado(archivo, { informe, limites, conteo, indices, archivos
   lista.mostrar(hallazgos)
   $('#lista').hidden = false
   $('#mapa-vacio').hidden = !sinMapa // si el mapa no cargó, su aviso se queda
-  mapa.mostrar({ urlCapa: nuevaUrl(archivos.mapa), urlHallazgos: nuevaUrl(archivos.hallazgos), limites, hallazgos })
+  mapa.mostrar({
+    urlCapa: nuevaUrl(archivos.mapa),
+    urlCentros: nuevaUrl(archivos.centros),
+    urlHallazgos: nuevaUrl(archivos.hallazgos),
+    limites,
+    hallazgos,
+  })
   // MapLibre lee las capas en su worker; se deja un margen antes de soltar las URLs viejas.
   setTimeout(() => viejas.forEach((url) => URL.revokeObjectURL(url)), 5000)
 }
@@ -397,14 +406,16 @@ $('#archivo').addEventListener('change', (evento) => {
   if (archivo) revisar(archivo)
 })
 
-$('#ejemplo').addEventListener('click', async () => {
+async function probarEjemplo() {
   try {
     const respuesta = await fetch(ejemploUrl)
     revisar(new File([await respuesta.blob()], 'ejemplo-deslinde.geojson'))
   } catch {
     mostrarFallo('No se pudo abrir el archivo de ejemplo. Vuelva a cargar la página e intente de nuevo.')
   }
-})
+}
+$('#ejemplo').addEventListener('click', probarEjemplo)
+$('#ejemplo-mapa').addEventListener('click', probarEjemplo)
 
 // ---------- Arrastrar y soltar ----------
 

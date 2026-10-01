@@ -1,13 +1,24 @@
-// Pruebas de la parte del mapa que no necesita MapLibre: el estilo, la capa de
-// hallazgos y la ficha de una parcela. El dibujo se revisa en el navegador.
+// Pruebas de la parte del mapa que no necesita MapLibre: el estilo, las capas
+// de centros y de hallazgos y la ficha de una parcela. El dibujo se revisa en
+// el navegador.
 
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { booleanPointInPolygon } from '@turf/turf'
 import { describe, expect, it } from 'vitest'
 import { unirIndices } from '../src/lista/datos.js'
-import { validarTexto } from '../src/motor/index.js'
-import { capaDeHallazgos, procesar } from '../src/motor/trabajo.js'
-import { CAPAS, CAPAS_CLIC, construirEstilo, esCapaPropia, fichaDeParcela } from '../src/mapa/capas.js'
+import { analizar, validarTexto } from '../src/motor/index.js'
+import { capaDeCentros, capaDeHallazgos, procesar } from '../src/motor/trabajo.js'
+import {
+  CAPAS,
+  CAPAS_CLIC,
+  construirEstilo,
+  esCapaPropia,
+  fichaDeParcela,
+  FUENTE_ETIQUETAS,
+  PALETA_MAPA,
+  ZOOM_DETALLE,
+} from '../src/mapa/capas.js'
 import { DIR_DATOS } from '../scripts/generar-datos.js'
 
 const informe = validarTexto(readFileSync(join(DIR_DATOS, 'errores-mezclados.geojson'), 'utf8'))
@@ -24,17 +35,37 @@ const BASE = {
   ],
 }
 
-// Todas las cadenas del estilo que parecen direcciones de internet. Las URLs
-// `blob:` son locales aunque lleven "http" adentro.
-const direcciones = (estilo) => JSON.stringify(estilo).match(/(?<!blob:)https?:\/\/[^"]+/g) ?? []
+// Dirección de la página: las letras de las etiquetas se sirven desde ahí.
+const ORIGEN = 'http://localhost:4173'
+
+// Todas las cadenas del estilo que parecen direcciones de otro sitio. Las URLs
+// `blob:` son locales aunque lleven "http" adentro, y las del propio sitio también.
+const direcciones = (estilo) =>
+  (JSON.stringify(estilo).match(/(?<!blob:)https?:\/\/[^"]+/g) ?? []).filter((url) => !url.startsWith(ORIGEN))
+
+const capa = (estilo, id) => estilo.layers.find((c) => c.id === id)
 
 describe('estilo del mapa', () => {
-  it('sin mapa base no pide nada a internet', () => {
-    const estilo = construirEstilo({ parcelas: 'blob:http://localhost/abc', hallazgos: capaDeHallazgos(informe.resultados) })
+  it('sin mapa base no pide nada fuera del sitio', () => {
+    const estilo = construirEstilo({
+      parcelas: 'blob:http://localhost/abc',
+      hallazgos: capaDeHallazgos(informe.resultados),
+      origen: ORIGEN,
+    })
     expect(direcciones(estilo)).toEqual([])
-    expect(estilo.glyphs).toBeUndefined()
     expect(estilo.sprite).toBeUndefined()
-    expect(Object.keys(estilo.sources)).toEqual(['parcelas', 'hallazgos'])
+    expect(Object.keys(estilo.sources)).toEqual(['parcelas', 'centros', 'hallazgos'])
+  })
+
+  it('sin mapa base, las etiquetas usan las letras del propio sitio', () => {
+    const estilo = construirEstilo({ origen: ORIGEN })
+    expect(estilo.glyphs).toBe(`${ORIGEN}/glyphs/{fontstack}/{range}.pbf`)
+    for (const rango of ['0-255', '256-511']) {
+      expect(existsSync(join('public', 'glyphs', FUENTE_ETIQUETAS, `${rango}.pbf`))).toBe(true)
+    }
+    const etiquetas = estilo.layers.filter((c) => c.type === 'symbol')
+    expect(etiquetas.length).toBeGreaterThan(0)
+    for (const c of etiquetas) expect(c.layout['text-font']).toEqual([FUENTE_ETIQUETAS])
   })
 
   it('con mapa base, las capas propias quedan encima', () => {
@@ -45,6 +76,25 @@ describe('estilo del mapa', () => {
     expect(estilo.glyphs).toBe(BASE.glyphs)
     expect(estilo.sources.openmaptiles).toEqual(BASE.sources.openmaptiles)
     expect(estilo.sources.parcelas.data).toBe('blob:http://localhost/abc')
+  })
+
+  it('el mapa base se tiñe con el verde oscuro de Deslinde', () => {
+    const base = {
+      ...BASE,
+      layers: [
+        { id: 'background', type: 'background', paint: { 'background-color': 'rgb(12,12,12)' } },
+        { id: 'water', type: 'fill', source: 'openmaptiles', 'source-layer': 'water', paint: { 'fill-color': 'rgb(27,27,29)' } },
+        { id: 'landcover_wood', type: 'fill', source: 'openmaptiles', 'source-layer': 'landcover', paint: { 'fill-color': 'rgb(32,32,32)' } },
+        { id: 'capa_desconocida', type: 'line', source: 'openmaptiles', 'source-layer': 'x', paint: { 'line-color': 'red' } },
+      ],
+    }
+    const estilo = construirEstilo({ base })
+    expect(capa(estilo, 'background').paint['background-color']).toBe(PALETA_MAPA.fondo)
+    expect(capa(estilo, 'water').paint['fill-color']).toBe(PALETA_MAPA.agua)
+    expect(capa(estilo, 'landcover_wood').paint['fill-color']).toBe(PALETA_MAPA.bosque)
+    // Las capas que no conoce las deja como vienen, y no toca el estilo que recibe.
+    expect(capa(estilo, 'capa_desconocida').paint['line-color']).toBe('red')
+    expect(base.layers[0].paint['background-color']).toBe('rgb(12,12,12)')
   })
 
   it('no hereda la vista del estilo base, para no perder el encuadre', () => {
@@ -66,6 +116,84 @@ describe('estilo del mapa', () => {
     expect(CAPAS.every((c) => esCapaPropia(c.id))).toBe(true)
     expect(esCapaPropia('water')).toBe(false)
     expect(CAPAS_CLIC.every((id) => CAPAS.some((c) => c.id === id))).toBe(true)
+  })
+})
+
+describe('las parcelas de lejos y de cerca', () => {
+  const estilo = construirEstilo({ origen: ORIGEN })
+
+  it('de lejos, cada parcela es una marca y las cercanas se agrupan con su cantidad', () => {
+    const centros = estilo.sources.centros
+    expect(centros.cluster).toBe(true)
+    expect(centros.clusterMaxZoom).toBeLessThan(ZOOM_DETALLE)
+    expect(Object.keys(centros.clusterProperties)).toEqual(['errores', 'advertencias'])
+    expect(capa(estilo, 'deslinde-grupo').filter).toEqual(['has', 'point_count'])
+    expect(capa(estilo, 'deslinde-grupo-cifra').layout['text-field']).toEqual(['get', 'point_count_abbreviated'])
+    expect(capa(estilo, 'deslinde-centro').filter).toEqual(['!', ['has', 'point_count']])
+    for (const id of ['deslinde-grupo', 'deslinde-grupo-cifra', 'deslinde-centro']) {
+      expect(capa(estilo, id).maxzoom).toBe(ZOOM_DETALLE)
+    }
+  })
+
+  it('de cerca se ve el borde de cada parcela', () => {
+    for (const id of ['deslinde-relleno', 'deslinde-borde', 'deslinde-punto']) {
+      expect(capa(estilo, id).minzoom).toBeLessThan(ZOOM_DETALLE)
+    }
+  })
+
+  it('en cuanto una parcela sale de su grupo, lleva su código', () => {
+    // El código va sobre el centro de la parcela, que siempre cae adentro: en
+    // un polígono que se cruza o partido entre teselas, MapLibre lo ubica mal.
+    const nombre = capa(estilo, 'deslinde-nombre')
+    expect(nombre.source).toBe('centros')
+    expect(nombre.filter).toEqual(['!', ['has', 'point_count']])
+    expect(nombre.layout['text-field']).toEqual(['get', 'id'])
+    expect(nombre.minzoom).toBe(estilo.sources.centros.clusterMaxZoom + 1)
+  })
+
+  it('el punto del problema dice qué regla falla', () => {
+    const regla = capa(estilo, 'deslinde-hallazgo-regla')
+    expect(regla.source).toBe('hallazgos')
+    expect(regla.layout['text-field']).toEqual(['get', 'regla'])
+  })
+
+  it('se puede elegir una parcela tanto de lejos como de cerca', () => {
+    expect(CAPAS_CLIC).toContain('deslinde-centro')
+    expect(CAPAS_CLIC).toContain('deslinde-relleno')
+  })
+})
+
+describe('capa de centros', () => {
+  const texto = readFileSync(join(DIR_DATOS, 'errores-mezclados.geojson'), 'utf8')
+  const { parcelas, estados } = analizar(texto)
+
+  it('un punto por parcela que se puede dibujar, con su peor severidad', () => {
+    const centros = capaDeCentros(parcelas, estados)
+    const dibujables = parcelas.filter((p) => estados[p.indice].dibujable)
+    expect(centros.features).toHaveLength(dibujables.length)
+    for (const f of centros.features) {
+      expect(f.geometry.type).toBe('Point')
+      expect(f.properties).toEqual({
+        indice: expect.any(Number),
+        id: expect.any(String),
+        severidad: estados[f.properties.indice].severidad,
+      })
+    }
+  })
+
+  it('el punto de un polígono cae dentro de la parcela', () => {
+    const centros = capaDeCentros(parcelas, estados)
+    const poligonos = parcelas.filter((p) => estados[p.indice].dibujable && !estados[p.indice].cruzada && p.tipo === 'Polygon')
+    expect(poligonos.length).toBeGreaterThan(0)
+    for (const p of poligonos) {
+      const centro = centros.features.find((f) => f.properties.indice === p.indice)
+      expect(booleanPointInPolygon(centro.geometry.coordinates, { type: 'Polygon', coordinates: p.coords })).toBe(true)
+    }
+  })
+
+  it('el worker la entrega lista como Blob', async () => {
+    const { archivos } = procesar(texto)
+    expect(JSON.parse(await archivos.centros.text())).toEqual(capaDeCentros(parcelas, estados))
   })
 })
 

@@ -28,6 +28,7 @@ export const AYUDA_REGLAS = `
         <dd>${texto}</dd>`,
     ).join('')}
   </dl>
+  <p class="nota">El archivo corregido solo arregla lo que no necesita criterio: invierte los pares al revés, cierra los bordes y quita los vértices repetidos seguidos. Lo demás hay que corregirlo en el archivo de origen.</p>
   <p class="nota">Deslinde no revisa deforestación ni certifica el cumplimiento: solo que la geolocalización esté bien armada.</p>
 `
 
