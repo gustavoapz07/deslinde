@@ -469,6 +469,19 @@ code {
   background: var(--acento-claro);
 }
 
+/* Acción secundaria, sin borde: el ejemplo de tres archivos. */
+.boton.enlace {
+  border-color: transparent;
+  color: var(--acento);
+  font-size: 13.5px;
+}
+
+.boton.enlace:hover {
+  border-color: transparent;
+  background: var(--superficie-2);
+  color: var(--acento-claro);
+}
+
 /* El campo real está oculto: su foco se ve en el botón. */
 #archivo:focus-visible ~ .zona .principal {
   outline: 2px solid var(--acento);
@@ -1432,6 +1445,10 @@ li:has(> .hallazgo.activa) + li .hallazgo {
 
 .vacio-tarjeta .boton {
   margin-top: 12px;
+}
+
+.vacio-tarjeta .boton.enlace {
+  margin-top: 0;
 }
 
 /* Controles de MapLibre en el mismo tono oscuro */

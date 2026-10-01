@@ -176,8 +176,10 @@ acciones. Sin degradados, sin etiquetas tipo píldora y sin títulos en mayúscu
 - **Pantalla ancha**: el panel a la izquierda (archivo, resultado, lista y ayuda) y el mapa en todo el resto, con el
   interruptor del mapa base, la leyenda y la ficha de la parcela flotando encima.
 - **Primera vista**: una zona para soltar el archivo (en pantallas táctiles invita a elegirlo) y el botón **"Probar con un ejemplo"**,
-  que carga `datos/sinteticos/errores-mezclados.geojson` (24 parcelas inventadas, un caso por regla). El mapa vacío
-  ofrece lo mismo: quien visita el portafolio no tiene un archivo de parcelas a mano.
+  que carga `datos/sinteticos/errores-mezclados.geojson` (24 parcelas inventadas, un caso por regla). Debajo, sin
+  borde, **"Juntar tres archivos de ejemplo"** carga las tres fuentes de `datos/sinteticos/juntar/`. El mapa vacío
+  ofrece lo mismo: quien visita el portafolio no tiene un archivo de parcelas a mano. Los ejemplos se sirven siempre
+  como archivo, nunca incrustados como `data:` (`vite.config.js`), porque la política de seguridad no deja leerlos así.
 - **Arrastrar y soltar** el archivo en cualquier parte de la página. Un formato que Deslinde no lee recibe un mensaje claro.
 - **Archivos revisados**: el nombre de cada uno y cuántas parcelas trae, o por qué no se pudo leer. Debajo, "Sumar otro
   archivo" agrega uno a la revisión; con varios, cada uno se puede quitar y se ve el total. Soltar archivos sobre la

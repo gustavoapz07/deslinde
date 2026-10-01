@@ -18,9 +18,11 @@ export default defineConfig({
     // MapLibre pesa unos 1,000 KB sin comprimir y se carga aparte (src/main.js):
     // el aviso de Vite sobre partes grandes no aplica.
     chunkSizeWarningLimit: 1100,
-    // Las fuentes van siempre como archivo, nunca incrustadas como data: (Vite
-    // incrusta lo que pesa menos de 4 KB): la política de seguridad solo deja
-    // cargar fuentes del propio sitio (font-src 'self').
-    assetsInlineLimit: (archivo) => (/\.woff2?$/.test(archivo) ? false : undefined),
+    // Las fuentes y los archivos de ejemplo van siempre como archivo, nunca
+    // incrustados como data: (Vite incrusta lo que pesa menos de 4 KB): la
+    // política de seguridad solo deja cargar fuentes del propio sitio
+    // (font-src 'self') y la página lee los ejemplos con fetch (connect-src,
+    // sin data:).
+    assetsInlineLimit: (archivo) => (/\.woff2?$|[\\/]datos[\\/]sinteticos[\\/]/.test(archivo) ? false : undefined),
   },
 })

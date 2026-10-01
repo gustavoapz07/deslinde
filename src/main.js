@@ -8,6 +8,9 @@
 
 import './estilos.css'
 import ejemploUrl from '../datos/sinteticos/errores-mezclados.geojson?url'
+import beneficioUrl from '../datos/sinteticos/juntar/beneficio-sur.kml?url'
+import cooperativaUrl from '../datos/sinteticos/juntar/cooperativa-norte.geojson?url'
+import tecnicosUrl from '../datos/sinteticos/juntar/tecnicos-centro-shp.zip?url'
 import { AYUDA_FORMATO, AYUDA_REGLAS } from './ayuda.js'
 import { ICONOS } from './iconos.js'
 import { unirIndices } from './lista/datos.js'
@@ -64,6 +67,7 @@ document.querySelector('#app').innerHTML = `
             <div class="botones">
               <label for="archivo" class="boton principal" id="elegir">Elegir archivo</label>
               <button type="button" class="boton" id="ejemplo">Probar con un ejemplo</button>
+              <button type="button" class="boton enlace" id="ejemplo-juntar">Juntar tres archivos de ejemplo</button>
             </div>
           </div>
           <p class="confianza">${ICONOS.escudo}<span>Se revisa en este equipo: el archivo no se sube a ningún servidor.</span></p>
@@ -159,6 +163,7 @@ document.querySelector('#app').innerHTML = `
         <p class="vacio-titulo" id="mapa-vacio-titulo">Aquí verá sus parcelas</p>
         <p id="mapa-vacio-texto">Cada una con el color de lo que encuentre la revisión. Cargue su archivo o pruebe con 24 parcelas inventadas.</p>
         <button type="button" class="boton principal" id="ejemplo-mapa">Probar con un ejemplo</button>
+        <button type="button" class="boton enlace" id="ejemplo-juntar-mapa">Juntar tres archivos de ejemplo</button>
       </div>
     </div>
   </div>
@@ -215,6 +220,7 @@ mapaListo.catch(() => {
   $('#mapa-vacio-texto').textContent =
     '¿Se cortó la conexión? La lista y las descargas funcionan igual. Vuelva a cargar la página para ver el mapa.'
   $('#ejemplo-mapa').hidden = true
+  $('#ejemplo-juntar-mapa').hidden = true
   $('#mapa-vacio').hidden = false
 })
 // Mientras MapLibre no llega, las órdenes esperan. De mostrar y limpiar solo vale
@@ -492,6 +498,31 @@ async function probarEjemplo() {
 }
 $('#ejemplo').addEventListener('click', probarEjemplo)
 $('#ejemplo-mapa').addEventListener('click', probarEjemplo)
+
+// Tres fuentes inventadas de un mismo exportador, cada una en su formato, para
+// ver cómo se juntan: traen la misma parcela en dos archivos, una medida dos
+// veces, un solape entre archivos y un código cruzado.
+const EJEMPLO_JUNTAR = [
+  [cooperativaUrl, 'cooperativa-norte.geojson'],
+  [beneficioUrl, 'beneficio-sur.kml'],
+  [tecnicosUrl, 'tecnicos-centro-shp.zip'],
+]
+async function probarJuntar() {
+  try {
+    const archivos = await Promise.all(
+      EJEMPLO_JUNTAR.map(async ([url, nombre]) => {
+        const respuesta = await fetch(url)
+        if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`)
+        return new File([await respuesta.blob()], nombre)
+      }),
+    )
+    revisar(archivos)
+  } catch {
+    mostrarFallo('No se pudieron abrir los archivos de ejemplo. Vuelva a cargar la página e intente de nuevo.')
+  }
+}
+$('#ejemplo-juntar').addEventListener('click', probarJuntar)
+$('#ejemplo-juntar-mapa').addEventListener('click', probarJuntar)
 
 // ---------- Arrastrar y soltar ----------
 
