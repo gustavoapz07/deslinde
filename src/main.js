@@ -15,7 +15,9 @@ import { COLORES, NOMBRES } from './mapa/capas.js'
 import { Cancelado, crearValidador } from './validador.js'
 
 const REPOSITORIO = 'https://github.com/gustavoapz07/deslinde'
-const FORMATOS = /\.(geojson|json|csv)$/i
+// Lo que se puede elegir. Un shapefile son varios archivos: se eligen juntos,
+// o en un .zip. El worker decide el formato por la extensión (motor/archivos.js).
+const ACEPTA = '.geojson,.json,.csv,.kml,.kmz,.zip,.shp,.dbf,.shx,.prj,.cpg'
 const SEVERIDADES = ['error', 'advertencia', 'ok']
 
 // El mismo dibujo que el ícono de la pestaña (public/favicon.svg): un grano de
@@ -47,7 +49,7 @@ document.querySelector('#app').innerHTML = `
           <p class="bajada">Deslinde encuentra los errores de geolocalización que pide el EUDR para el café y le muestra en el mapa dónde está cada uno.</p>
         </div>
         <div class="carga">
-          <input id="archivo" class="oculto" type="file" accept=".geojson,.json,.csv" />
+          <input id="archivo" class="oculto" type="file" accept="${ACEPTA}" multiple />
           <div class="archivo-actual" id="archivo-actual" hidden>
             <span class="archivo-icono">${ICONOS.archivo}</span>
             <span class="archivo-datos"><strong id="archivo-nombre"></strong><span id="archivo-meta"></span></span>
@@ -55,7 +57,7 @@ document.querySelector('#app').innerHTML = `
           <div class="zona">
             <span class="zona-icono">${ICONOS.subir}</span>
             <p class="zona-titulo"><span class="con-mouse">Arrastre aquí su archivo</span><span class="tactil">Elija su archivo de parcelas</span></p>
-            <p class="zona-detalle">GeoJSON o CSV de puntos, con las coordenadas en grados</p>
+            <p class="zona-detalle">GeoJSON, KML o KMZ, shapefile (en .zip, o el .shp con su .dbf) o CSV de puntos</p>
             <div class="botones">
               <label for="archivo" class="boton principal" id="elegir">Elegir archivo</label>
               <button type="button" class="boton" id="ejemplo">Probar con un ejemplo</button>
@@ -310,7 +312,7 @@ function veredicto(conteo) {
   return { clase: 'ok', texto: 'Ninguna parcela tiene hallazgos en las 12 reglas revisadas.' }
 }
 
-function mostrarResultado(archivo, { informe, limites, conteo, indices, archivos }, segundos) {
+function mostrarResultado(nombre, { informe, limites, conteo, indices, archivos }, segundos) {
   // Las URLs del archivo anterior se sueltan recién ahora, cuando el mapa ya no las usa.
   const viejas = urls
   urls = []
@@ -319,7 +321,7 @@ function mostrarResultado(archivo, { informe, limites, conteo, indices, archivos
   $('#bienvenida').hidden = true
   $('#app').dataset.vista = 'resultado' // la zona de carga se achica: ya no es lo principal
   $('#elegir').textContent = 'Elegir otro archivo'
-  $('#archivo-nombre').textContent = archivo.name
+  $('#archivo-nombre').textContent = nombre
   $('#archivo-meta').textContent = `${plural(informe.parcelas, 'parcela', 'parcelas')} · revisado ${
     segundos < 0.1 ? 'al instante' : `en ${segundos.toFixed(1)} s`
   }`
@@ -342,8 +344,8 @@ function mostrarResultado(archivo, { informe, limites, conteo, indices, archivos
   $('#sin-dibujar').textContent =
     `${plural(conteo.sinDibujar, 'parcela no se puede dibujar', 'parcelas no se pueden dibujar')}: ` +
     'sus coordenadas no están en grados o no se pueden leer. Está en la lista y en el informe.'
-  enlazar($('#bajar-informe'), archivos.informe, `${nombreBase(archivo.name)}-informe.csv`)
-  enlazar($('#bajar-corregido'), archivos.corregido, `${nombreBase(archivo.name)}-corregido.geojson`)
+  enlazar($('#bajar-informe'), archivos.informe, `${nombreBase(nombre)}-informe.csv`)
+  enlazar($('#bajar-corregido'), archivos.corregido, `${nombreBase(nombre)}-corregido.geojson`)
   $('#resultado').hidden = false
   anunciar(`Revisión terminada. ${v.texto}`)
 
@@ -375,24 +377,23 @@ function mostrarFallo(mensaje) {
 
 // ---------- Revisar un archivo ----------
 
-async function revisar(archivo) {
-  if (!FORMATOS.test(archivo.name)) {
-    return mostrarFallo(`"${archivo.name}" no es un GeoJSON ni un CSV. Deslinde v0 lee esos dos formatos; KML y shapefile llegan en una versión futura.`)
-  }
+// El nombre que se muestra: el del archivo, o el .shp si llegaron las partes de un shapefile.
+const nombreDe = (archivos) => (archivos.find((a) => /\.shp$/i.test(a.name)) ?? archivos[0]).name
+
+/** @param {File[]} archivos  Uno, o los de un shapefile. */
+async function revisar(archivos) {
   $('#archivo-actual').hidden = true
   $('#resultado').hidden = true
   mostrarEstado('Leyendo el archivo…', { avance: null })
-  const formato = /\.csv$/i.test(archivo.name) ? 'csv' : 'geojson'
   const inicio = performance.now()
   try {
-    const resultado = await validador.validar(archivo, {
-      formato,
+    const resultado = await validador.validar(archivos, {
       alAvanzar: (avance) => {
         const [texto, cifra] = FASES[avance.fase](avance)
         mostrarEstado(texto, { avance: cifra })
       },
     })
-    mostrarResultado(archivo, resultado, (performance.now() - inicio) / 1000)
+    mostrarResultado(nombreDe(archivos), resultado, (performance.now() - inicio) / 1000)
   } catch (e) {
     if (e instanceof Cancelado) return // llegó otro archivo; ese ya muestra su avance
     // Los mensajes de ErrorDeArchivo ya dicen qué falla en el archivo; los demás, que no es culpa del archivo.
@@ -401,15 +402,15 @@ async function revisar(archivo) {
 }
 
 $('#archivo').addEventListener('change', (evento) => {
-  const archivo = evento.target.files[0]
+  const archivos = [...evento.target.files]
   evento.target.value = '' // permite volver a elegir el mismo archivo después de corregirlo
-  if (archivo) revisar(archivo)
+  if (archivos.length > 0) revisar(archivos)
 })
 
 async function probarEjemplo() {
   try {
     const respuesta = await fetch(ejemploUrl)
-    revisar(new File([await respuesta.blob()], 'ejemplo-deslinde.geojson'))
+    revisar([new File([await respuesta.blob()], 'ejemplo-deslinde.geojson')])
   } catch {
     mostrarFallo('No se pudo abrir el archivo de ejemplo. Vuelva a cargar la página e intente de nuevo.')
   }
@@ -439,6 +440,6 @@ window.addEventListener('drop', (e) => {
   e.preventDefault()
   arrastres = 0
   $('#soltar').hidden = true
-  const archivo = e.dataTransfer.files[0]
-  if (archivo) revisar(archivo)
+  const archivos = [...e.dataTransfer.files]
+  if (archivos.length > 0) revisar(archivos)
 })

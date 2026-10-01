@@ -1,14 +1,13 @@
-// Lectores de GeoJSON y CSV de puntos. Cada parcela guarda sus coordenadas dos
-// veces: como números, para calcular, y como el texto tal como venía escrito,
-// para contar decimales (R2) y para escribir el GeoJSON corregido sin inventar
-// ni perder precisión.
+// Lectores de los formatos de texto: GeoJSON, CSV de puntos y KML (kml.js).
+// Cada parcela guarda sus coordenadas dos veces: como números, para calcular, y
+// como el texto tal como venía escrito, para contar decimales (R2) y para
+// escribir el GeoJSON corregido sin inventar ni perder precisión. El shapefile,
+// que es binario, se lee en shapefile.js.
 
-export class ErrorDeArchivo extends Error {
-  constructor(mensaje) {
-    super(mensaje)
-    this.name = 'ErrorDeArchivo'
-  }
-}
+import { aNumero, ErrorDeArchivo, etiquetaDe } from './errores.js'
+import { leerKML } from './kml.js'
+
+export { ErrorDeArchivo }
 
 /**
  * @typedef {Object} Parcela
@@ -19,6 +18,8 @@ export class ErrorDeArchivo extends Error {
  * @property {any} coords         Coordenadas como números (NaN si no se pudo leer).
  * @property {any} textos         Mismas coordenadas, como texto original.
  * @property {number} areaHa      Área declarada; NaN si no viene.
+ * @property {'texto'|'binaria'} [precision]  'binaria' en el shapefile: las
+ *   coordenadas vienen como números y su texto es el más corto que las representa.
  */
 
 const NUMERO = /-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g
@@ -26,7 +27,8 @@ const NUMERO = /-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g
 export function leer(texto, formato = 'geojson') {
   if (formato === 'csv') return leerCSV(texto)
   if (formato === 'geojson') return leerGeoJSON(texto)
-  throw new ErrorDeArchivo(`Formato no admitido: ${formato}. Use GeoJSON o CSV.`)
+  if (formato === 'kml') return leerKML(texto)
+  throw new ErrorDeArchivo(`Formato no admitido: ${formato}. Use GeoJSON, KML, shapefile o CSV.`)
 }
 
 /** Decimales escritos en un número: "14.500000" tiene 6, "1.5e-3" tiene 4. */
@@ -36,11 +38,6 @@ export function decimales(texto) {
   return Math.max(0, (m[1]?.length ?? 0) - Number(m[2] ?? 0))
 }
 
-const aNumero = (t) => (typeof t === 'string' && t.trim() !== '' ? Number(t) : NaN)
-
-function etiquetaDe(id, indice) {
-  return id === undefined || id === null || id === '' ? `sin código (n.º ${indice + 1})` : String(id)
-}
 
 // ---------- GeoJSON ----------
 

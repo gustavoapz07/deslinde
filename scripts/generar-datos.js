@@ -9,6 +9,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { area } from '@turf/turf'
+import { archivosShapefile, bytesKMZ, bytesZipShapefile, textoKML } from './escribir-formatos.js'
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..')
 export const DIR_DATOS = join(RAIZ, 'datos', 'sinteticos')
@@ -242,12 +243,31 @@ function textoCSV(features) {
   return ['id,productor,latitud,longitud,area_ha', ...filas].join('\n') + '\n'
 }
 
+/** Las parcelas válidas de valido.geojson y valido-puntos.csv, para armar otros formatos en las pruebas. */
+export const parcelasValidas = () => cuadricula(25, 5, crearAzar(SEMILLA + 1))
+export const puntosValidos = () => cuadricula(15, 5, crearAzar(SEMILLA + 2), true)
+/** Diez parcelas válidas y todos los casos de error: el contenido de errores-mezclados. */
+export const parcelasMezcladas = () => [
+  ...cuadricula(10, 5, crearAzar(SEMILLA + 5)),
+  ...casosDeError(crearAzar(SEMILLA + 4)).flatMap((c) => c.features),
+]
+
 export function generarTodo(dir = DIR_DATOS) {
   mkdirSync(join(dir, 'casos'), { recursive: true })
   const escribir = (nombre, texto) => writeFileSync(join(dir, nombre), texto, 'utf8')
+  const escribirBytes = (nombre, bytes) => writeFileSync(join(dir, nombre), bytes)
 
-  escribir('valido.geojson', textoGeoJSON(cuadricula(25, 5, crearAzar(SEMILLA + 1))))
-  escribir('valido-puntos.csv', textoCSV(cuadricula(15, 5, crearAzar(SEMILLA + 2), true)))
+  const validas = parcelasValidas()
+  escribir('valido.geojson', textoGeoJSON(validas))
+  escribir('valido-puntos.csv', textoCSV(puntosValidos()))
+
+  // Las mismas parcelas en los formatos de v1. Un shapefile lleva un solo tipo
+  // de geometría: los polígonos y los puntos van en archivos aparte.
+  escribir('valido.kml', textoKML(validas))
+  escribirBytes('valido.kmz', bytesKMZ(textoKML(validas)))
+  const poligonos = validas.filter((f) => f.geometry.type !== 'Point')
+  escribirBytes('valido-poligonos-shp.zip', bytesZipShapefile('valido-poligonos', archivosShapefile(poligonos)))
+  escribirBytes('valido-puntos-shp.zip', bytesZipShapefile('valido-puntos', archivosShapefile(puntosValidos())))
   escribir('grande-10000.geojson', textoGeoJSON(cuadricula(10000, 100, crearAzar(SEMILLA + 3))))
 
   const casos = casosDeError(crearAzar(SEMILLA + 4))
@@ -257,8 +277,8 @@ export function generarTodo(dir = DIR_DATOS) {
 
   // Diez parcelas válidas junto a todos los casos, para la demo y para probar
   // que el motor marca solo las parcelas con problemas.
-  const validas = cuadricula(10, 5, crearAzar(SEMILLA + 5))
-  escribir('errores-mezclados.geojson', textoGeoJSON([...validas, ...casos.flatMap((c) => c.features)]))
+  escribir('errores-mezclados.geojson', textoGeoJSON(parcelasMezcladas()))
+  escribir('errores-mezclados.kml', textoKML(parcelasMezcladas()))
 
   return casos.map(({ numero, nombre, regla }) => ({ numero, nombre, regla }))
 }

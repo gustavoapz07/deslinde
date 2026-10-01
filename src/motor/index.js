@@ -37,7 +37,7 @@ export { escribirCorregido, geojsonCorregido, informeCSV } from './salidas.js'
  */
 
 export const OPCIONES_POR_DEFECTO = {
-  formato: 'geojson', // 'geojson' o 'csv'
+  formato: 'geojson', // 'geojson', 'csv', 'kml' o 'shapefile'
   umbralAreaPct: 10, // R12: diferencia admitida entre área declarada y calculada [hipótesis]
   solapeMinimoM2: 10, // R10: solapes menores se toman como ruido de medición [hipótesis]
 }
@@ -79,12 +79,16 @@ function revisarParcela(p, opciones) {
  * (pares invertidos, anillos cerrados, vértices repetidos quitados) para
  * escribir el GeoJSON corregido, y el estado de cada parcela para el mapa.
  * `opciones.alAvanzar(avance)` recibe el avance, para mostrarlo en pantalla.
+ * @param {string | {formato?: string, parcelas: import('./lector.js').Parcela[]}} entrada
+ *   El texto del archivo, o las parcelas ya leídas (el shapefile, que es binario,
+ *   lo lee archivos.js).
  */
-export function analizar(texto, opciones = {}) {
-  const o = { ...OPCIONES_POR_DEFECTO, ...opciones }
+export function analizar(entrada, opciones = {}) {
+  const yaLeidas = typeof entrada !== 'string'
+  const o = { ...OPCIONES_POR_DEFECTO, ...(yaLeidas && entrada.formato ? { formato: entrada.formato } : {}), ...opciones }
   const avisar = o.alAvanzar ?? (() => {})
   avisar({ fase: 'leyendo' })
-  const parcelas = leer(texto, o.formato)
+  const parcelas = yaLeidas ? entrada.parcelas : leer(entrada, o.formato)
   const encontrados = []
   const comparables = []
   const dibujables = []

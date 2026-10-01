@@ -9,7 +9,7 @@ y muestra los errores en un mapa. Todo ocurre en el navegador: los archivos no s
 > **Herramienta de apoyo.** Deslinde no certifica el cumplimiento del EUDR ni emite dictámenes
 > de deforestación. La responsabilidad legal sigue siendo del operador.
 
-Prototipo v0 de portafolio. Solo usa **datos sintéticos**: ninguna coordenada corresponde a una finca real.
+Prototipo de portafolio, camino a la v1. Solo usa **datos sintéticos**: ninguna coordenada corresponde a una finca real.
 La investigación, las decisiones y el plan están en la bóveda de Obsidian `Agro y Cumplimiento`.
 
 ## Estado
@@ -22,7 +22,8 @@ La investigación, las decisiones y el plan están en la bóveda de Obsidian `Ag
 | 3. Auditoría y publicación | Publicada el 30-09-2026 en [deslinde.pages.dev](https://deslinde.pages.dev/), con auditoría, rediseño y privacidad revisados (82 pruebas pasan). Falta la prueba con una persona ajena |
 | 4. Portafolio | Presentación del caso hecha el 30-09-2026; el post se publica al terminar la v1 |
 | 5. Rediseño | Hecho el 30-09-2026: tema oscuro con el mapa al centro, parcelas agrupadas de lejos y con su código de cerca, ficha al costado (92 pruebas pasan) |
-| 6. v1 | Siguiente: KML y shapefile, juntar archivos de varias fuentes, revisión de bosque 2020 con evidencia e informe en PDF |
+| 6a. KML y shapefile | Hecha el 01-10-2026: KML, KMZ y shapefile (en .zip o con sus archivos sueltos), comprobado contra pyshp (120 pruebas pasan) |
+| 6b a 6d. Resto de la v1 | Siguen: juntar archivos de varias fuentes, revisión de bosque 2020 con evidencia e informe en PDF |
 
 ## Cómo correrlo
 
@@ -38,7 +39,7 @@ npm run build       # build de producción en dist/
 npm run preview     # sirve dist/ con las mismas cabeceras que Cloudflare Pages
 ```
 
-## Formato de entrada (v0)
+## Formatos de entrada
 
 **GeoJSON**: un `FeatureCollection` en EPSG:4326 (longitud, latitud). Cada parcela es un `Feature` con:
 
@@ -50,23 +51,52 @@ npm run preview     # sirve dist/ con las mismas cabeceras que Cloudflare Pages
 
 Geometrías admitidas: `Point` (parcelas de hasta 4 ha), `Polygon` y `MultiPolygon`.
 
+**KML o KMZ** (como los de Google Earth): una parcela por `Placemark`, dentro de carpetas o no. El código sale
+del dato `id` de `ExtendedData` (en `Data/value` o en `SchemaData/SimpleData`); si no está, del nombre del Placemark
+y, si tampoco, de su atributo `id`. El área sale del dato `area_ha`. Un `MultiGeometry` de polígonos se lee como
+`MultiPolygon`. El KMZ se abre y se lee su `doc.kml` (o el primer KML que traiga).
+
+**Shapefile** en grados: un `.zip` con el `.shp`, el `.dbf` y sus compañeros, o esos archivos elegidos juntos.
+El `.dbf` trae las columnas `ID`, `AREA_HA` y, si se quiere, `PRODUCTOR` (se leen sin importar mayúsculas).
+Admite puntos y polígonos, también con Z o M. El `.cpg` dice la codificación del `.dbf`; sin él, se usa UTF-8
+si todo el archivo lo es y, si no, Windows-1252. Por ahora no se reproyecta: un shapefile en metros (UTM)
+sale con R1, como un GeoJSON en metros.
+
 **CSV de puntos**: columnas `id,productor,latitud,longitud,area_ha`. Se leen por nombre, no por posición.
 
-Las coordenadas deben venir **escritas** con al menos 6 decimales. El motor cuenta los decimales
-en el texto del archivo, porque al leerlo como número se pierden los ceros finales (`14.500000` pasa a ser `14.5`).
+Las coordenadas deben venir **escritas** con al menos 6 decimales. En GeoJSON, KML y CSV el motor cuenta los
+decimales en el texto del archivo, porque al leerlo como número se pierden los ceros finales (`14.500000` pasa
+a ser `14.5`). El shapefile no tiene texto: guarda números binarios. Ahí R2 marca la parcela si **ninguna**
+coordenada necesita más de 5 decimales, es decir, si se exportó redondeada. Contar como en el texto marcaría
+casi todo polígono, porque uno de cada diez números medidos con 6 decimales termina en cero.
+
+Un archivo a la vez: si llegan varios archivos de parcelas o un `.zip` con dos shapefiles, Deslinde lo dice.
+Juntar archivos de varias fuentes es la parte 6b de la v1.
 
 ## Uso del motor
 
 ```js
 import { validarTexto, informeCSV, geojsonCorregido } from './src/motor/index.js'
 
-const informe = validarTexto(texto, { formato: 'geojson' }) // o 'csv'
+const informe = validarTexto(texto, { formato: 'geojson' }) // o 'csv' o 'kml'
 // informe.resultados: [{ parcela, regla, severidad, ubicacion, mensaje, accion }]
 const csv = informeCSV(informe)            // una fila por hallazgo, con BOM para Excel
 const corregido = geojsonCorregido(texto)  // GeoJSON EPSG:4326 con las correcciones seguras
 ```
 
 Si el archivo no se puede leer, `validarTexto` lanza `ErrorDeArchivo` con un mensaje en español.
+
+Para archivos binarios o comprimidos (shapefile, KMZ, `.zip`), `leerArchivos` (`src/motor/archivos.js`) recibe
+los nombres y los bytes, decide el formato por la extensión y devuelve el texto o las parcelas ya leídas, que
+`analizar` acepta igual que el texto:
+
+```js
+import { leerArchivos } from './src/motor/archivos.js'
+import { analizar } from './src/motor/index.js'
+
+const entrada = leerArchivos([{ nombre: 'fincas.zip', bytes }]) // { formato: 'shapefile', nombre, parcelas }
+const { informe } = analizar(entrada.texto ?? entrada, { formato: entrada.formato })
+```
 
 **Correcciones seguras** que aplica el GeoJSON corregido: invierte pares latitud/longitud (R3), cierra
 anillos (R5) y quita vértices repetidos seguidos (R7). Lo demás queda como venía y sigue en el informe.
@@ -84,8 +114,8 @@ para que un archivo grande no congele la pantalla.
 import { crearValidador, Cancelado, ErrorDeArchivo } from './src/validador.js'
 
 const validador = crearValidador()
-const { informe, limites, archivos } = await validador.validar(archivo, {
-  formato: 'geojson',                  // o 'csv'
+const { informe, limites, archivos } = await validador.validar(elegidos, {
+  // elegidos: los File que eligió la persona (uno, o los de un shapefile)
   alAvanzar: (avance) => { /* mostrar el avance */ },
 })
 // archivos.mapa: capa GeoJSON para MapLibre, una parcela por Feature con su peor severidad
@@ -95,7 +125,8 @@ const { informe, limites, archivos } = await validador.validar(archivo, {
 // limites: [oeste, sur, este, norte] de las parcelas dibujables, para encuadrar el mapa
 ```
 
-- Se le pasa el archivo (`File`) y no el texto: la lectura también ocurre fuera de la página.
+- Se le pasan los archivos (`File`) y no el texto: la lectura, la descompresión y la elección del formato
+  también ocurren fuera de la página.
 - Las salidas vuelven como `Blob`, así que pasarlas entre hilos no copia su contenido.
 - Un archivo nuevo cancela la revisión anterior (esa promesa se rechaza con `Cancelado`).
 - Un archivo ilegible rechaza con `ErrorDeArchivo`. Un fallo interno rechaza con un mensaje que aclara que no es culpa del archivo.
@@ -252,6 +283,9 @@ estrella que no se cruzan ni se solapan entre sí.
 |-------|---------|---------|----------|
 | Geometría | `@turf/turf` | 7.4.0 | MIT |
 | Mapa | `maplibre-gl` | 6.11.2 | BSD-3-Clause |
+| Lectura del XML del KML (en el worker, donde no hay DOMParser) | `txml` | 6.0.3 | MIT |
+| Apertura de KMZ y `.zip` | `fflate` | 0.8.3 | MIT |
+| Lectura de shapefile | Propia (`src/motor/shapefile.js`), según la especificación de ESRI de 1998 | — | — |
 | Mapa base (servicio, sin paquete) | OpenFreeMap, estilo `dark` | — | Datos © OpenStreetMap (ODbL), OpenMapTiles |
 | Letras de las etiquetas del mapa (sin paquete) | Noto Sans Bold, glifos de OpenFreeMap en `public/glyphs` | — | OFL-1.1 (`public/glyphs/LICENSE-OFL.txt`) |
 | Tipografía de la marca y el texto | `@fontsource-variable/manrope` | 5.3.0 | OFL-1.1 |
@@ -259,7 +293,8 @@ estrella que no se cruzan ni se solapan entre sí.
 | Servidor de desarrollo y compilación | `vite` | 8.3.1 | MIT |
 | Pruebas | `vitest` | 5.0.2 | MIT |
 
-Versiones y licencias leídas del `package.json` de cada paquete instalado el 28-09-2026 (las tipografías, el 30-09-2026).
+Versiones y licencias leídas del `package.json` de cada paquete instalado el 28-09-2026 (las tipografías, el
+30-09-2026; `txml` y `fflate`, el 01-10-2026).
 
 ## Licencia
 

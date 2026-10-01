@@ -95,6 +95,14 @@ function invertirPares(p) {
   }
 }
 
+// Qué hacer con los pares invertidos, según de dónde vino el archivo.
+const CONSEJO_R3 = {
+  geojson: 'Invierta el orden de cada par: GeoJSON usa [longitud, latitud]. El GeoJSON corregido ya trae los pares invertidos.',
+  csv: 'Revise que las columnas latitud y longitud no estén intercambiadas.',
+  kml: 'Invierta el orden de cada par: KML usa longitud,latitud. El GeoJSON corregido ya trae los pares invertidos.',
+  shapefile: 'Revise al exportar que X sea la longitud e Y la latitud. El GeoJSON corregido ya trae los pares invertidos.',
+}
+
 // Si leídas al revés las coordenadas caen en Honduras, la causa es el orden (R3) y
 // se corrige; si no, y están fuera, es R4.
 export function reglaR3yR4(p, formato) {
@@ -106,9 +114,7 @@ export function reglaR3yR4(p, formato) {
       'R3',
       ubicar(lista[0].pos),
       'La latitud y la longitud parecen invertidas: leídas al revés, la parcela cae en Honduras.',
-      formato === 'csv'
-        ? 'Revise que las columnas latitud y longitud no estén intercambiadas.'
-        : 'Invierta el orden de cada par: GeoJSON usa [longitud, latitud]. El GeoJSON corregido ya trae los pares invertidos.',
+      CONSEJO_R3[formato] ?? CONSEJO_R3.geojson,
     )
   }
   const fuera = lista.find(({ pos }) => !enHonduras(pos))
@@ -122,8 +128,29 @@ export function reglaR3yR4(p, formato) {
 
 // ---------- R2 · Al menos 6 decimales ----------
 // Se cuentan sobre el texto: al leer 14.500000 como número quedaría 14.5.
+//
+// En un shapefile no hay texto: las coordenadas vienen como números binarios y
+// 14.500000 llega como 14.5. Contar como en el texto marcaría casi todo polígono,
+// porque uno de cada diez números medidos con 6 decimales termina en cero. Ahí se
+// mira lo contrario: si ninguna coordenada de la parcela necesita más de 5
+// decimales, se exportó redondeada. Con 6 decimales de verdad, que todas
+// terminen en cero es prácticamente imposible.
+
+function reglaR2Binaria(p) {
+  const lista = posiciones(p)
+  let mayor = 0
+  for (const { txt } of lista) for (const t of txt) mayor = Math.max(mayor, decimales(t))
+  if (mayor >= DECIMALES_MINIMOS) return null
+  return error(
+    'R2',
+    ubicar(lista[0].pos),
+    `Ninguna coordenada tiene más de ${mayor} decimales: parecen redondeadas a ${mayor} decimales. El EUDR pide al menos ${DECIMALES_MINIMOS}.`,
+    `Exporte el shapefile sin redondear las coordenadas, con ${DECIMALES_MINIMOS} decimales o más. Si el GPS no dio esa precisión, vuelva a levantar la parcela.`,
+  )
+}
 
 export function reglaR2(p) {
+  if (p.precision === 'binaria') return reglaR2Binaria(p)
   let peor = null
   for (const { pos, txt } of posiciones(p)) {
     for (const t of txt) {

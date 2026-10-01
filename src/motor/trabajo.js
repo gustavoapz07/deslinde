@@ -5,6 +5,7 @@
 // del mapa desde su propia URL sin que la página toque las geometrías.
 
 import { bbox, centroid, pointOnFeature } from '@turf/turf'
+import { leerArchivos } from './archivos.js'
 import { analizar, ErrorDeArchivo } from './index.js'
 import { HONDURAS } from './reglas.js'
 import { escribirCorregido, informeCSV } from './salidas.js'
@@ -119,11 +120,13 @@ export function capaDeHallazgos(resultados) {
 }
 
 /**
- * Revisa el texto y prepara todo lo que la página necesita.
+ * Revisa el archivo y prepara todo lo que la página necesita.
+ * @param {string | {formato: string, parcelas: import('./lector.js').Parcela[]}} entrada
+ *   El texto, o las parcelas ya leídas (shapefile).
  * @returns {ResultadoDelTrabajo}
  */
-export function procesar(texto, opciones = {}) {
-  const { parcelas, estados, indices, informe } = analizar(texto, opciones)
+export function procesar(entrada, opciones = {}) {
+  const { parcelas, estados, indices, informe } = analizar(entrada, opciones)
   opciones.alAvanzar?.({ fase: 'salidas' })
   const mapa = capaDelMapa(parcelas, estados)
   return {
@@ -141,16 +144,29 @@ export function procesar(texto, opciones = {}) {
   }
 }
 
+// Lo que mandó la página, listo para el motor. Con archivos (File, uno o
+// varios), el formato sale de su extensión y los comprimidos se abren aquí,
+// fuera de la página. Con texto o un Blob sin nombre, vale el formato que vino.
+async function prepararEntrada(entrada, formato) {
+  if (typeof entrada === 'string') return { entrada, formato }
+  const lista = Array.isArray(entrada) ? entrada : [entrada]
+  if (lista.length === 1 && !lista[0].name) return { entrada: await lista[0].text(), formato }
+  const archivos = await Promise.all(lista.map(async (a) => ({ nombre: a.name, bytes: new Uint8Array(await a.arrayBuffer()) })))
+  const leido = leerArchivos(archivos)
+  return { entrada: leido.texto ?? leido, formato: leido.formato }
+}
+
 /**
- * Atiende un pedido de la página. `entrada` puede ser el texto o el archivo
- * (File o Blob): con el archivo, la lectura también ocurre fuera de la página.
+ * Atiende un pedido de la página. `entrada` puede ser el texto, un Blob o los
+ * archivos (File, uno o varios, como los de un shapefile): con los archivos, la
+ * lectura también ocurre fuera de la página.
  * Responde con mensajes { id, tipo: 'avance' | 'listo' | 'error' }.
  */
 export async function atender({ id, entrada, formato, opciones = {} }, enviar) {
   try {
-    const texto = typeof entrada === 'string' ? entrada : await entrada.text()
+    const preparada = await prepararEntrada(entrada, formato)
     const alAvanzar = (avance) => enviar({ id, tipo: 'avance', avance })
-    const resultado = procesar(texto, { ...opciones, formato, alAvanzar })
+    const resultado = procesar(preparada.entrada, { ...opciones, formato: preparada.formato, alAvanzar })
     enviar({ id, tipo: 'listo', resultado })
   } catch (e) {
     const error =

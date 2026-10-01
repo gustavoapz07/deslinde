@@ -57,8 +57,10 @@ export function crearValidador(crearTrabajador = trabajadorDelNavegador) {
 
   return {
     /**
-     * @param {string|Blob} entrada  Texto del archivo o el archivo mismo.
-     * @param {{formato?: 'geojson'|'csv', opciones?: Object, alAvanzar?: (a: import('./motor/index.js').Avance) => void}} [ajustes]
+     * @param {string|Blob|File[]} entrada  Texto del archivo, el archivo mismo o
+     *   varios (los de un shapefile). Con archivos, el formato sale de su extensión.
+     * @param {{formato?: 'geojson'|'csv'|'kml', opciones?: Object, alAvanzar?: (a: import('./motor/index.js').Avance) => void}} [ajustes]
+     *   `formato` vale para el texto o un Blob sin nombre.
      * @returns {Promise<import('./motor/trabajo.js').ResultadoDelTrabajo>}
      */
     validar(entrada, { formato = 'geojson', opciones = {}, alAvanzar } = {}) {

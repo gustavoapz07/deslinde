@@ -40,6 +40,7 @@ export const AYUDA_FORMATO = `
     <li><code>productor</code> (opcional): un código, no el nombre de la persona.</li>
   </ul>
   <p>Acepta polígonos, multipolígonos y puntos (para parcelas de hasta 4 ha).</p>
+  <p><strong>KML o KMZ</strong>, como los de Google Earth, con una parcela por <code>Placemark</code>. El código sale del dato <code>id</code> de <code>ExtendedData</code> o, si no está, del nombre del Placemark; el área, del dato <code>area_ha</code>.</p>
+  <p><strong>Shapefile</strong> en grados: un .zip con el .shp, el .dbf y sus compañeros, o esos archivos elegidos juntos. El .dbf trae las columnas <code>ID</code>, <code>AREA_HA</code> y, si se quiere, <code>PRODUCTOR</code>. Como el shapefile guarda las coordenadas como números y no como texto, la regla de los 6 decimales mira si vienen redondeadas.</p>
   <p><strong>CSV de puntos</strong> con las columnas <code>id</code>, <code>productor</code>, <code>latitud</code>, <code>longitud</code> y <code>area_ha</code>, separadas por coma o punto y coma.</p>
-  <p>KML y shapefile llegan en una versión futura.</p>
 `
