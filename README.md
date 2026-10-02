@@ -137,7 +137,8 @@ El nombre de quien revisa se recuerda para la siguiente. Borrar una revisión se
 
 Ojo con la versión: el 01-10-2026, el archivo que el servidor de descargas de la JRC llama "V4" en su carpeta
 `LATEST` era en realidad la versión 3 (mismo tamaño que la v3 del servicio de descarga, y 100 % de píxeles iguales
-a la capa `gfc2020_v3` del WMS). Deslinde usa la capa `gfc2020_v4` del WMS.
+a la capa `gfc2020_v3` del WMS). Deslinde usa la capa `gfc2020_v4` del WMS, que el 02-10-2026 coincidió en el
+100 % de los píxeles con la tesela v4 del servicio de descarga de la JRC, en 8 celdas de Honduras.
 
 ```js
 import { analizarConBosque } from './src/motor/index.js'
