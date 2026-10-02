@@ -16,6 +16,9 @@ import { ICONOS } from './iconos.js'
 import { unirIndices } from './lista/datos.js'
 import { crearLista } from './lista/index.js'
 import { COLORES, NOMBRES } from './mapa/capas.js'
+import { crearAlmacen } from './revision/almacen.js'
+import { estadoDeRevision, resumenDeRevisiones } from './revision/datos.js'
+import { bloqueDeRevision } from './revision/formulario.js'
 import { Cancelado, crearValidador } from './validador.js'
 
 const REPOSITORIO = 'https://github.com/gustavoapz07/deslinde'
@@ -101,7 +104,7 @@ document.querySelector('#app').innerHTML = `
             </div>
             <p class="nota" id="sin-dibujar" hidden></p>
           </div>
-          <div class="bosque">
+          <div class="paso-bosque">
             <button type="button" class="pedir-bosque" id="revisar-bosque">
               <span class="archivo-icono">${ICONOS.arbol}</span>
               <span class="archivo-datos"><strong>Revisar bosque 2020</strong><span>Compara cada parcela con el mapa de bosque de la UE. La UE recibe la zona, no el archivo.</span></span>
@@ -134,6 +137,8 @@ document.querySelector('#app').innerHTML = `
               <p>El archivo se lee y se revisa en este equipo. Deslinde no tiene un servidor que lo reciba, y el navegador tiene prohibido enviarlo a otro sitio.</p>
               <p>Con el mapa base encendido, OpenFreeMap recibe qué zona del mapa se está mirando, no el archivo. Si trabaja con parcelas reales y no quiere que se sepa dónde están, apague el interruptor «Mapa base» del mapa: las parcelas se ven igual sobre fondo liso.</p>
               <p>«Revisar bosque 2020» le pide al servicio de la UE (el JRC) el mapa de bosque de recortes de unos 5 km alrededor de las parcelas, y la capa de bosque del mapa pide los de la zona que se mira. La UE recibe esas zonas, no el archivo ni los códigos. Solo pasa si aprieta el botón.</p>
+              <p>Las revisiones de las parcelas con bosque, con sus fotos y documentos, se guardan en este navegador para la próxima vez. No se suben a ningún servidor.</p>
+              <p><button type="button" class="boton-texto" id="borrar-revisiones">Borrar las revisiones guardadas en este navegador</button></p>
             </div>
           </details>
         </div>
@@ -225,6 +230,7 @@ const mapaListo = import('./mapa/index.js').then(({ crearMapa }) =>
     ficha: $('#ficha'),
     globo: $('#globo'),
     controles: { fondo: $('.control-fondo'), leyenda: $('#leyenda') },
+    extraFicha: (indice) => bloqueDeLaFicha(indice),
   }),
 )
 let sinMapa = false
@@ -358,6 +364,71 @@ function alcance({ errores, advertencias }, bosque) {
   return `${cuantos} en 12 reglas de geolocalización. No revisa deforestación.`
 }
 
+// ---------- Revisión con evidencia ----------
+
+// Las revisiones se guardan en este navegador (IndexedDB); si no deja, en memoria.
+let almacen = null
+const almacenListo = crearAlmacen().then((a) => (almacen = a))
+let revisables = new Map() // posición en la revisión → { clave, etiqueta, archivo }: las parcelas con bosque
+let revisiones = new Map() // clave → revisión guardada
+let ordenDeRevisiones = 0
+
+// Las parcelas con bosque de este resultado y sus revisiones guardadas de antes.
+async function prepararRevisiones(parcelas) {
+  const orden = ++ordenDeRevisiones
+  revisables = new Map(parcelas.map((r) => [r.indice, r]))
+  revisiones = new Map()
+  if (parcelas.length === 0) return
+  const guardadas = await (await almacenListo).leerVarias(parcelas.map((r) => r.clave))
+  if (orden !== ordenDeRevisiones) return // llegó otra revisión mientras tanto
+  revisiones = guardadas
+  cambiaronLasRevisiones()
+}
+
+function cambiaronLasRevisiones() {
+  lista.refrescar()
+  mostrarResumenDeRevisiones()
+}
+
+// Lo que dice la lista debajo de un aviso R15.
+function estadoEnLaLista(h) {
+  const parcela = h.regla === 'R15' ? revisables.get(h.indice) : undefined
+  if (!parcela) return null
+  const revision = revisiones.get(parcela.clave)
+  return { texto: estadoDeRevision(revision), revisada: Boolean(revision) }
+}
+
+// El bloque de revisión de la ficha, si la parcela cae en bosque.
+function bloqueDeLaFicha(indice) {
+  const parcela = revisables.get(indice)
+  if (!parcela) return null
+  return bloqueDeRevision({
+    revision: revisiones.get(parcela.clave),
+    persistente: almacen?.persistente ?? true,
+    alGuardar: async (revision) => {
+      await (await almacenListo).guardar(parcela.clave, revision)
+      revisiones.set(parcela.clave, revision)
+      cambiaronLasRevisiones()
+      anunciar(`Revisión de ${parcela.etiqueta} guardada.`)
+    },
+    alBorrar: async () => {
+      await (await almacenListo).borrar(parcela.clave)
+      revisiones.delete(parcela.clave)
+      cambiaronLasRevisiones()
+      anunciar(`Revisión de ${parcela.etiqueta} borrada.`)
+    },
+  })
+}
+
+let textoDelBosque = ''
+function mostrarResumenDeRevisiones() {
+  if (!textoDelBosque) return
+  const claves = [...revisables.values()].map((r) => r.clave)
+  const { total, revisadas } = resumenDeRevisiones(claves, revisiones)
+  const avance = total === 0 ? '' : revisadas === total ? ' Todas revisadas.' : ` Revisadas: ${numero.format(revisadas)} de ${numero.format(total)}. Elija una en el mapa para revisarla.`
+  $('#bosque-estado').textContent = textoDelBosque + avance
+}
+
 // El paso del bosque 2020: el botón para pedirlo, o lo que dio. Si el servicio
 // de la UE no respondió, el botón queda para intentarlo de nuevo.
 function mostrarBosque(bosque) {
@@ -365,17 +436,35 @@ function mostrarBosque(bosque) {
   $('#revisar-bosque').hidden = Boolean(bosque?.revisado)
   estado.hidden = !bosque
   estado.classList.toggle('error', Boolean(bosque?.error))
+  textoDelBosque = ''
   if (bosque?.error) estado.textContent = bosque.error
   else if (bosque?.revisado) {
     const cuantas = bosque.parcelasConBosque
-    estado.textContent =
+    textoDelBosque =
       cuantas === 0
         ? 'Bosque 2020 revisado con el mapa de la UE (GFC2020 v4): ninguna parcela cae en bosque.'
         : `Bosque 2020 revisado con el mapa de la UE (GFC2020 v4): ${plural(cuantas, 'parcela cae', 'parcelas caen')} en bosque, del todo o en parte. Es una alerta para revisar, no un dictamen: el mapa no distingue el café con sombra.`
+    estado.textContent = textoDelBosque
   }
   $('#interruptor-bosque').hidden = !bosque?.revisado
   $('#leyenda-bosque').hidden = !bosque?.revisado || !$('#capa-bosque').checked
 }
+
+// Borrar todas las revisiones guardadas: se confirma con un segundo clic.
+$('#borrar-revisiones').addEventListener('click', async (evento) => {
+  const boton = evento.currentTarget
+  if (boton.dataset.confirmar !== 'si') {
+    boton.dataset.confirmar = 'si'
+    boton.textContent = 'Confirmar: borrar todas las revisiones guardadas'
+    return
+  }
+  await (await almacenListo).borrarTodo()
+  revisiones = new Map()
+  cambiaronLasRevisiones()
+  delete boton.dataset.confirmar
+  boton.textContent = 'Borrar las revisiones guardadas en este navegador'
+  anunciar('Se borraron las revisiones guardadas en este navegador.')
+})
 
 // Los archivos de la revisión a la vista (File), en el orden en que se mandaron
 // al worker: cada fuente del informe dice cuáles son los suyos (`de`).
@@ -426,7 +515,7 @@ function mostrarFuentes(fuentes, revisado) {
   $('#archivos').hidden = false
 }
 
-function mostrarResultado(enviados, { informe, limites, conteo, indices, archivos, bosque }, segundos) {
+function mostrarResultado(enviados, { informe, limites, conteo, indices, archivos, bosque, revisables: conBosque = [] }, segundos) {
   // Las URLs del archivo anterior se sueltan recién ahora, cuando el mapa ya no las usa.
   const viejas = urls
   urls = []
@@ -467,7 +556,8 @@ function mostrarResultado(enviados, { informe, limites, conteo, indices, archivo
   anunciar(`Revisión terminada. ${v.texto}${bosque ? ` ${$('#bosque-estado').textContent}` : ''}`)
 
   const hallazgos = unirIndices(informe.resultados, indices)
-  lista.mostrar(hallazgos, { archivos: varias ? legibles.map((f) => f.nombre) : [] })
+  prepararRevisiones(conBosque) // las revisiones guardadas llegan después y refrescan la lista
+  lista.mostrar(hallazgos, { archivos: varias ? legibles.map((f) => f.nombre) : [], estadoDe: estadoEnLaLista })
   $('#lista').hidden = false
   $('#mapa-vacio').hidden = !sinMapa // si el mapa no cargó, su aviso se queda
   mapa.mostrar({
@@ -492,6 +582,7 @@ function mostrarFallo(mensaje) {
   $('#mapa-vacio').hidden = false
   mapa.limpiar() // que no queden a la vista las parcelas del archivo anterior
   lista.limpiar()
+  prepararRevisiones([])
 }
 
 // ---------- Revisar uno o varios archivos ----------

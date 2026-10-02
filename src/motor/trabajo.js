@@ -150,7 +150,7 @@ export function procesar(entrada, opciones = {}) {
  */
 export async function procesarConBosque(entrada, opciones = {}) {
   const analisis = await analizarConBosque(entrada, opciones)
-  return { ...salidas(analisis, opciones), bosque: analisis.bosque }
+  return { ...salidas(analisis, opciones), bosque: analisis.bosque, revisables: analisis.revisables }
 }
 
 // El mapa, las descargas y los conteos de una revisión.

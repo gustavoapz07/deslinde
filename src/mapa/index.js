@@ -92,11 +92,12 @@ function contenidoDeFicha(ficha, alCerrar) {
 
 /**
  * @param {HTMLElement} contenedor
- * @param {{conFondo?: boolean, ficha: HTMLElement, globo: HTMLElement, controles?: {fondo?: HTMLElement, leyenda?: HTMLElement}}} ajustes
+ * @param {{conFondo?: boolean, ficha: HTMLElement, globo: HTMLElement, controles?: {fondo?: HTMLElement, leyenda?: HTMLElement}, extraFicha?: (indice: number) => HTMLElement|null}} ajustes
  *   `ficha` y `globo` son elementos de la página, encima del mapa, que el mapa llena.
  *   `controles` son las otras tarjetas sobre el mapa: el encuadre las esquiva.
+ *   `extraFicha(indice)` da lo que va al final de la ficha de una parcela (la revisión de bosque), o null.
  */
-export function crearMapa(contenedor, { conFondo = true, ficha, globo, controles = {} }) {
+export function crearMapa(contenedor, { conFondo = true, ficha, globo, controles = {}, extraFicha = () => null }) {
   const estado = { base: null, parcelas: undefined, centros: undefined, hallazgos: undefined }
   /** @type {import('../lista/datos.js').Hallazgo[]} */
   let hallazgos = []
@@ -178,7 +179,8 @@ export function crearMapa(contenedor, { conFondo = true, ficha, globo, controles
   function abrirFicha(indice, id, archivo) {
     elegir(indice)
     const datos = fichaDeParcela(indice, hallazgos, id, conArchivo ? archivo : undefined)
-    ficha.replaceChildren(...contenidoDeFicha(datos, () => cerrarFicha()))
+    const extra = extraFicha(indice)
+    ficha.replaceChildren(...contenidoDeFicha(datos, () => cerrarFicha()), ...(extra ? [extra] : []))
     ficha.hidden = false
     ficha.scrollTop = 0
   }
@@ -267,9 +269,10 @@ export function crearMapa(contenedor, { conFondo = true, ficha, globo, controles
   })
   mapa.getCanvas().addEventListener('mouseleave', ocultarGlobo)
 
-  // Escape cierra la ficha, esté donde esté el foco.
+  // Escape cierra la ficha, esté donde esté el foco, salvo mientras se escribe
+  // una revisión: se perdería lo escrito.
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !ficha.hidden) cerrarFicha()
+    if (e.key === 'Escape' && !ficha.hidden && !e.target.closest?.('form')) cerrarFicha()
   })
 
   const api = {

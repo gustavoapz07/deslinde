@@ -4,6 +4,7 @@
 // otro. No usa servidor: todo corre donde se llame. R15 (bosque 2020) va
 // aparte, en analizarConBosque, porque consulta el mapa de la UE.
 
+import { claveDeParcela, huellaDeGeometria } from '../revision/datos.js'
 import { celdasParaParcelas, consultarCeldas, ERROR_BOSQUE, revisarBosque } from './bosque.js'
 import { leer } from './lector.js'
 import {
@@ -217,12 +218,20 @@ export async function analizarConBosque(entrada, opciones = {}) {
   try {
     mascaras = await consultarCeldas(celdas, o.consultarCelda, { alAvanzar: o.alAvanzar })
   } catch (e) {
-    return { ...previo, bosque: { revisado: false, error: ERROR_BOSQUE, detalle: String(e?.message ?? e) } }
+    return { ...previo, bosque: { revisado: false, error: ERROR_BOSQUE, detalle: String(e?.message ?? e) }, revisables: [] }
   }
   const r15 = revisarBosque(revision.parcelas, previo.estados, mascaras)
+  const conBosque = [...new Map(r15.map((h) => [h.parcela.indice, h.parcela])).values()].sort((a, b) => a.indice - b.indice)
   return {
     ...armar({ ...revision, encontrados: [...revision.encontrados, ...r15] }),
-    bosque: { revisado: true, celdas: celdas.length, parcelasConBosque: new Set(r15.map((h) => h.parcela.indice)).size },
+    bosque: { revisado: true, celdas: celdas.length, parcelasConBosque: conBosque.length },
+    // Las parcelas que una persona tiene que revisar, con la clave de su revisión.
+    revisables: conBosque.map((p) => ({
+      indice: p.indice,
+      etiqueta: p.etiqueta,
+      archivo: p.archivo,
+      clave: claveDeParcela({ archivo: p.archivo, etiqueta: p.etiqueta, huella: huellaDeGeometria(p.tipo, p.textos) }),
+    })),
   }
 }
 

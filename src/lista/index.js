@@ -48,6 +48,7 @@ export function crearLista(contenedor, { alElegir }) {
   let tramo = { desde: 0, hasta: TAMANO_PAGINA }
   let activa = null
   let archivos = [] // al juntar varios, sus nombres: cada hallazgo dice de cuál es
+  let estadoDe = () => null // con el bosque revisado, si la parcela de un R15 ya tiene revisión
 
   function opcion(valor, texto) {
     const o = document.createElement('option')
@@ -137,6 +138,13 @@ export function crearLista(contenedor, { alElegir }) {
     mensaje.className = 'hallazgo-mensaje'
     mensaje.textContent = h.ubicacion ? h.mensaje : `${h.mensaje} No se puede mostrar en el mapa.`
     texto.append(cabeza, mensaje)
+    const estado = estadoDe(h)
+    if (estado) {
+      const linea = document.createElement('span')
+      linea.className = `hallazgo-revision${estado.revisada ? ' revisada' : ''}`
+      linea.textContent = estado.texto
+      texto.append(linea)
+    }
     cuerpo.append(icono, severidad, texto)
     li.append(cuerpo)
     return li
@@ -223,11 +231,14 @@ export function crearLista(contenedor, { alElegir }) {
   return {
     /**
      * @param {import('./datos.js').Hallazgo[]} hallazgos
-     * @param {{archivos?: string[]}} [ajustes]  Los archivos, si se juntaron varios.
+     * @param {{archivos?: string[], estadoDe?: (h: import('./datos.js').Hallazgo) => {texto: string, revisada: boolean}|null}} [ajustes]
+     *   `archivos`: los nombres, si se juntaron varios. `estadoDe`: una línea más debajo
+     *   del mensaje (el estado de la revisión de bosque), o null.
      */
-    mostrar(hallazgos, { archivos: nombres = [] } = {}) {
+    mostrar(hallazgos, { archivos: nombres = [], estadoDe: estado = () => null } = {}) {
       todos = hallazgos
       archivos = nombres
+      estadoDe = estado
       activa = null
       llenarFiltros()
       aplicarFiltro()
@@ -243,6 +254,11 @@ export function crearLista(contenedor, { alElegir }) {
         dibujar()
       }
       resaltar(true)
+    },
+
+    /** Vuelve a dibujar el tramo a la vista, por ejemplo después de guardar una revisión. */
+    refrescar() {
+      dibujar()
     },
 
     limpiar() {

@@ -308,8 +308,8 @@ code {
   margin: 10px 0 0 -10px;
 }
 
-[data-vista='resultado'] .boton,
-[data-vista='resultado'] .boton.principal {
+[data-vista='resultado'] .zona .boton,
+[data-vista='resultado'] .zona .boton.principal {
   min-height: 32px;
   padding: 0 10px;
   border-color: transparent;
@@ -318,7 +318,7 @@ code {
   font-size: 13.5px;
 }
 
-[data-vista='resultado'] .boton:hover {
+[data-vista='resultado'] .zona .boton:hover {
   background: var(--superficie);
   color: var(--acento-claro);
 }
@@ -671,7 +671,7 @@ code {
 }
 
 /* El paso del bosque 2020: una acción como "Sumar otro archivo" y, después, lo que dio. */
-.bosque {
+.paso-bosque {
   margin-top: 24px;
   padding-top: 20px;
   border-top: 1px solid var(--linea);
@@ -1451,6 +1451,231 @@ li:has(> .hallazgo.activa) + li .hallazgo {
 .ficha-accion strong {
   font-weight: 650;
   color: var(--texto);
+}
+
+/* Revisión con evidencia, al final de la ficha de una parcela con bosque. */
+.revision {
+  display: grid;
+  gap: 12px;
+  margin: 0 20px;
+  padding: 16px 0 20px;
+  border-top: 1px solid var(--linea);
+}
+
+.revision-titulo {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.revision-formulario {
+  display: grid;
+  gap: 14px;
+}
+
+.revision-opciones {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.revision-opcion {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  align-items: start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.revision-opcion:hover,
+.revision-opcion:has(input:checked) {
+  background: var(--superficie-2);
+}
+
+.revision-opcion input {
+  margin: 3px 0 0;
+  accent-color: var(--acento);
+}
+
+.revision-opcion > span {
+  display: grid;
+  gap: 1px;
+}
+
+.revision-opcion strong {
+  font-size: 13.5px;
+  font-weight: 650;
+}
+
+.revision-opcion span span {
+  font-size: 12.5px;
+  color: var(--texto-2);
+}
+
+.revision-campo {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--texto-2);
+}
+
+.revision-campo textarea,
+.revision-campo input {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--linea-fuerte);
+  border-radius: 10px;
+  background: var(--superficie);
+  color: var(--texto);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 450;
+  resize: vertical;
+}
+
+.revision-campo textarea:focus-visible,
+.revision-campo input:focus-visible {
+  border-color: var(--acento);
+  outline: none;
+}
+
+.revision-adjuntar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: start;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--acento);
+  cursor: pointer;
+}
+
+.revision-adjuntar .icono {
+  width: 17px;
+  height: 17px;
+}
+
+.revision-adjuntar:hover {
+  color: var(--acento-claro);
+}
+
+/* El campo real está oculto: su foco se ve en la etiqueta. */
+.revision-formulario input[type='file']:focus-visible + .revision-adjuntar {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.revision-adjuntos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.revision-adjuntos li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.revision-adjuntos img {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.revision-adjuntos li .quitar {
+  width: 26px;
+  height: 26px;
+}
+
+.revision-errores p {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--error-texto);
+}
+
+.revision-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+}
+
+.revision-acciones .boton {
+  min-height: 36px;
+}
+
+.revision-pregunta {
+  font-size: 13.5px;
+  color: var(--texto);
+}
+
+.revision-aviso,
+.revision-firma {
+  font-size: 12.5px;
+  color: var(--texto-2);
+}
+
+/* El color acompaña a la decisión: queda en el lote, falta ir a verla o sale del lote. */
+.revision-decision {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.revision-decision.agricola {
+  color: var(--ok-texto);
+}
+
+.revision-decision.campo {
+  color: var(--advertencia-texto);
+}
+
+.revision-decision.excluir {
+  color: var(--error-texto);
+}
+
+.revision-motivo {
+  font-size: 13.5px;
+  white-space: pre-line;
+}
+
+/* Botón con aspecto de enlace: acciones secundarias. */
+.boton-texto {
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--acento);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.boton-texto:hover {
+  color: var(--acento-claro);
+}
+
+/* En la lista, debajo de un aviso R15: si ya tiene revisión. */
+.hallazgo-revision {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--advertencia-texto);
+}
+
+.hallazgo-revision.revisada {
+  color: var(--ok-texto);
 }
 
 .ficha-limpia {

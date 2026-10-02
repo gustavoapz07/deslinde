@@ -24,7 +24,7 @@ La investigación, las decisiones y el plan están en la bóveda de Obsidian `Ag
 | 5. Rediseño | Hecho el 30-09-2026: tema oscuro con el mapa al centro, parcelas agrupadas de lejos y con su código de cerca, ficha al costado (92 pruebas pasan) |
 | 6a. KML y shapefile | Hecha el 01-10-2026: KML, KMZ y shapefile (en .zip o con sus archivos sueltos), comprobado contra pyshp (120 pruebas pasan) |
 | 6b. Juntar archivos de varias fuentes | Hecha el 01-10-2026: varios archivos se revisan juntos, R11 avisa de la misma parcela en dos archivos (por geometría o por código) y sale un solo archivo unido (147 pruebas pasan) |
-| 6c. Bosque 2020 | Primera parte hecha el 01-10-2026: R15 compara cada parcela con el mapa de bosque 2020 de la UE (GFC2020 v4), con un botón, y lo dibuja en el mapa (166 pruebas pasan). Sigue la revisión con evidencia |
+| 6c. Bosque 2020 con evidencia | Hecha el 01 y 02-10-2026: R15 compara cada parcela con el mapa de bosque 2020 de la UE (GFC2020 v4), con un botón, y lo dibuja en el mapa; cada parcela con bosque se revisa en su ficha, con decisión, motivo, quién revisó y adjuntos, guardados en el navegador (178 pruebas pasan) |
 | 6d. Informe en PDF | Sigue |
 
 ## Cómo correrlo
@@ -115,6 +115,25 @@ parcela, nunca un dictamen: el mapa no distingue el café con sombra del bosque.
   convenga un mínimo, como los 10 m² de R10.
 - **En el mapa**: la capa de bosque se dibuja debajo de las parcelas, con su interruptor y su lugar en la leyenda.
 - **Si el servicio no responde**: se dice, y la revisión de geolocalización sigue valiendo.
+
+### Revisión con evidencia
+
+Como el mapa no distingue el café con sombra, cada parcela con bosque la revisa una persona. En la ficha de la
+parcela, debajo del aviso R15, un formulario pide:
+
+- **La decisión**: uso agrícola desde antes de 2021 (por ejemplo, café con sombra: puede quedar en el lote),
+  pendiente de visita de campo, o se excluye del lote.
+- **El motivo y la evidencia**, en texto, y **quién revisó**. Se guarda con la fecha.
+- **Adjuntos**: fotos (JPEG, PNG, WebP, HEIC) o PDF de hasta 10 MB cada uno.
+
+Las revisiones se guardan **en este navegador** (IndexedDB, `src/revision/almacen.js`), nunca se suben. Cada una
+se identifica por el archivo, el código y una huella de la geometría (FNV-1a sobre el texto de las coordenadas), así
+que al volver a cargar el mismo archivo, o al sumar otros, aparecen otra vez. Si el navegador no deja guardar
+(ventana privada), duran mientras la página esté abierta y el formulario lo dice. En "Privacidad y mapas" hay un
+botón para borrarlas todas.
+
+La lista de hallazgos dice debajo de cada R15 si ya tiene revisión, y el panel cuántas faltan ("Revisadas: 2 de 7").
+El nombre de quien revisa se recuerda para la siguiente. Borrar una revisión se confirma ahí mismo.
 
 Ojo con la versión: el 01-10-2026, el archivo que el servidor de descargas de la JRC llama "V4" en su carpeta
 `LATEST` era en realidad la versión 3 (mismo tamaño que la v3 del servicio de descarga, y 100 % de píxeles iguales
@@ -283,7 +302,7 @@ un verde apenas insinuado para que se distingan bosques, ríos y caminos y mande
   repetido…), desde el zoom 13, y al lado dice su regla ("R6").
 - **Parcelas que se cruzan (R6)**: se dibujan como contorno. Como polígono, un moño tiene área neta cero y
   MapLibre lo descarta al cortar en teselas: la parcela desaparecía del mapa.
-- **Clic en una parcela**: se marca con un borde blanco y se abre su ficha (código, archivo si hay varios, estado, hallazgos y qué hacer),
+- **Clic en una parcela**: se marca con un borde blanco y se abre su ficha (código, archivo si hay varios, estado, hallazgos, qué hacer y, si cae en bosque, su revisión),
   fija a la derecha del mapa (abajo en el celular), no encima de la parcela. Los textos del archivo se escriben
   como texto, nunca como HTML. Si el clic no cae dentro de una parcela, se busca en un margen de 6 px, para
   acertarle a un contorno o a una marca con el dedo. Al pasar el mouse, un globo dice el código y el estado.
